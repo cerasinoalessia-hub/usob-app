@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --usob-blue: #1a3a6b;
+  --usob-yellow: #f5c518;
+}
+
+body {
+  background-color: #f4f6fb;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
