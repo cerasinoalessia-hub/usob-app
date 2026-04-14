@@ -49,7 +49,24 @@ function useTable(table, orderBy = "id") {
     setData(prev => prev.filter(r => r.id !== id));
   };
 
-  return { data, loading, refetch: fetch, upsert, update, remove };
+  // Inserisce o aggiorna in base alla colonna "chiave" (upsert semantico)
+  const upsertChiave = async (row) => {
+    const { data: result, error } = await supabase
+      .from(table)
+      .upsert(row, { onConflict: "chiave" })
+      .select()
+      .single();
+    if (result) {
+      setData(prev => {
+        const idx = prev.findIndex(r => r.chiave === row.chiave);
+        if (idx >= 0) { const next = [...prev]; next[idx] = result; return next; }
+        return [...prev, result];
+      });
+    }
+    return result;
+  };
+
+  return { data, loading, refetch: fetch, upsert, update, remove, upsertChiave };
 }
 
 // ─── Styles ────────────────────────────────────────────────────────────────
@@ -446,46 +463,83 @@ function AnalyticsSection({ rosa, classifica, loading }) {
   );
 }
 
-// ─── FUN ───────────────────────────────────────────────────────────────────
+// ─── Helper: costruisce lista paste da gol + compleanni ────────────────────
 
-function FunSection({ rosa, partite, paste, loading }) {
+function buildPasteList(rosa, partite, pasteDb) {
   const oggi = new Date();
   const annoCorrente = oggi.getFullYear();
   const lista = [];
 
-  partite.filter(p => p.fatta && p.marcatori?.length > 0).forEach(p => {
-    const conteggio = {};
-    p.marcatori.forEach(m => { conteggio[m] = (conteggio[m] || 0) + 1; });
-    Object.entries(conteggio).forEach(([cognome, numGol]) => {
-      const giocatore = rosa.find(r => r.cognome === cognome);
-      for (let i = 0; i < numGol; i++) {
-        const chiave = `gol_${p.id}_${cognome}_${i}`;
-        const portata = paste.find(x => x.chiave === chiave);
-        lista.push({ chiave, cognome: giocatore?.cognome || cognome, nome: giocatore?.nome || "", motivo: `⚽ Gol vs ${p.casa === "USOB Bareggio" ? p.ospite : p.casa}`, data: p.data, portate: portata?.portate || false });
-      }
+  // 1. Un gol = una pasta, con data della partita
+  partite
+    .filter(p => p.fatta && Array.isArray(p.marcatori) && p.marcatori.length > 0)
+    .forEach(partita => {
+      // Conta quante volte ogni cognome appare nei marcatori
+      const conteggio = {};
+      partita.marcatori.forEach(m => { conteggio[m] = (conteggio[m] || 0) + 1; });
+      Object.entries(conteggio).forEach(([cognome, numGol]) => {
+        const giocatore = rosa.find(r => r.cognome === cognome);
+        for (let i = 0; i < numGol; i++) {
+          const chiave = `gol_${partita.id}_${cognome}_${i}`;
+          const rec = pasteDb.find(x => x.chiave === chiave);
+          const avversaria = partita.casa === "USOB Bareggio" ? partita.ospite : partita.casa;
+          lista.push({
+            chiave,
+            cognome: giocatore ? giocatore.cognome : cognome,
+            nome: giocatore ? giocatore.nome : "",
+            motivo: `⚽ Gol vs ${avversaria}`,
+            data: partita.data,
+            portate: rec ? rec.portate : false,
+            dbId: rec ? rec.id : null,
+          });
+        }
+      });
     });
-  });
 
-  rosa.filter(p => p.nascita).forEach(p => {
-    const nascita = new Date(p.nascita);
-    let dataCompl = new Date(annoCorrente, nascita.getMonth(), nascita.getDate());
-    if (dataCompl < oggi) dataCompl = new Date(annoCorrente + 1, nascita.getMonth(), nascita.getDate());
-    const chiave = `compl_${p.id}_${annoCorrente}`;
-    const portata = paste.find(x => x.chiave === chiave);
-    lista.push({ chiave, cognome: p.cognome, nome: p.nome, motivo: "🎂 Compleanno", data: dataCompl.toISOString().split("T")[0], portate: portata?.portate || false });
-  });
+  // 2. Un compleanno = una pasta, con data del prossimo compleanno
+  rosa
+    .filter(g => g.nascita)
+    .forEach(g => {
+      const nascita = new Date(g.nascita);
+      let dataCompl = new Date(annoCorrente, nascita.getMonth(), nascita.getDate());
+      // Se il compleanno è già passato quest'anno, usa l'anno prossimo
+      if (dataCompl < oggi) {
+        dataCompl = new Date(annoCorrente + 1, nascita.getMonth(), nascita.getDate());
+      }
+      const chiave = `compl_${g.id}_${dataCompl.getFullYear()}`;
+      const rec = pasteDb.find(x => x.chiave === chiave);
+      lista.push({
+        chiave,
+        cognome: g.cognome,
+        nome: g.nome,
+        motivo: `🎂 Compleanno ${dataCompl.getFullYear()}`,
+        data: dataCompl.toISOString().split("T")[0],
+        portate: rec ? rec.portate : false,
+        dbId: rec ? rec.id : null,
+      });
+    });
 
+  // Ordine cronologico
   lista.sort((a, b) => new Date(a.data) - new Date(b.data));
+  return lista;
+}
+
+// ─── FUN ───────────────────────────────────────────────────────────────────
+
+function FunSection({ rosa, partite, paste, loading }) {
+  const lista = buildPasteList(rosa, partite, paste);
   const daPortare = lista.filter(p => !p.portate);
   const giàPortate = lista.filter(p => p.portate);
 
   const PastaRow = ({ p, isFirst }) => (
     <div style={{ padding: "14px 16px", borderBottom: `1px solid ${COLORS.gray100}`, background: isFirst ? COLORS.gialloMuted : COLORS.white, display: "flex", gap: 12, alignItems: "center" }}>
-      <div style={{ fontSize: 28 }}>{p.motivo?.includes("Compleanno") ? "🎂" : "⚽"}</div>
+      <div style={{ fontSize: 26 }}>{p.motivo.startsWith("🎂") ? "🎂" : "⚽"}</div>
       <div style={{ flex: 1 }}>
         <div style={{ fontWeight: 800, fontSize: 16, color: COLORS.bluDark }}>{p.cognome} {p.nome}</div>
         <div style={{ fontSize: 12, color: COLORS.gray600 }}>{p.motivo}</div>
-        <div style={{ fontSize: 12, color: COLORS.gray400 }}>{new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}</div>
+        <div style={{ fontSize: 12, color: COLORS.gray400 }}>
+          {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
+        </div>
       </div>
       {isFirst && <span style={{ ...styles.badge(), fontSize: 11, padding: "4px 10px" }}>PROSSIMO!</span>}
     </div>
@@ -498,16 +552,19 @@ function FunSection({ rosa, partite, paste, loading }) {
         <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.gray600, letterSpacing: 1, marginBottom: 6, paddingLeft: 4 }}>DA PORTARE</div>
         <div style={{ ...styles.card, marginBottom: 14 }}>
           <div style={{ padding: "12px 16px", background: COLORS.gialloMuted, borderBottom: `1px solid ${COLORS.giallo}` }}>
-            <div style={{ fontSize: 13, color: COLORS.bluDark, fontWeight: 600 }}>Le paste si portano per ogni gol segnato e per il compleanno. In ordine cronologico.</div>
+            <div style={{ fontSize: 13, color: COLORS.bluDark, fontWeight: 600 }}>
+              Un gol = una pasta. Un compleanno = una pasta. In ordine cronologico.
+            </div>
           </div>
           {daPortare.length === 0
             ? <div style={{ padding: 16, fontSize: 13, color: COLORS.gray400, textAlign: "center" }}>Nessuna pasta in programma 🎉</div>
             : daPortare.map((p, i) => <PastaRow key={p.chiave} p={p} isFirst={i === 0} />)
           }
         </div>
+
         {giàPortate.length > 0 && <>
           <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.gray600, letterSpacing: 1, marginBottom: 6, paddingLeft: 4 }}>GIÀ PORTATE ✅</div>
-          <div style={{ ...styles.card, opacity: 0.6 }}>
+          <div style={{ ...styles.card, opacity: 0.65 }}>
             {giàPortate.map(p => (
               <div key={p.chiave} style={{ padding: "12px 16px", borderBottom: `1px solid ${COLORS.gray100}`, display: "flex", gap: 12, alignItems: "center" }}>
                 <div style={{ fontSize: 22 }}>✅</div>
@@ -722,85 +779,63 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
 
       {/* PASTE */}
       {tab === "paste" && (() => {
-        const oggi = new Date();
-        const annoCorrente = oggi.getFullYear();
-        const lista = [];
-
-        partiteHook.data.filter(p => p.fatta && p.marcatori?.length > 0).forEach(p => {
-          const conteggio = {};
-          p.marcatori.forEach(m => { conteggio[m] = (conteggio[m] || 0) + 1; });
-          Object.entries(conteggio).forEach(([cognome, numGol]) => {
-            const giocatore = rosaHook.data.find(r => r.cognome === cognome);
-            for (let i = 0; i < numGol; i++) {
-              const chiave = `gol_${p.id}_${cognome}_${i}`;
-              const rec = pasteHook.data.find(x => x.chiave === chiave);
-              lista.push({ chiave, cognome: giocatore?.cognome || cognome, nome: giocatore?.nome || "", motivo: `⚽ Gol vs ${p.casa === "USOB Bareggio" ? p.ospite : p.casa}`, data: p.data, portate: rec?.portate || false, dbId: rec?.id || null });
-            }
-          });
-        });
-
-        rosaHook.data.filter(p => p.nascita).forEach(p => {
-          const nascita = new Date(p.nascita);
-          let dataCompl = new Date(annoCorrente, nascita.getMonth(), nascita.getDate());
-          if (dataCompl < oggi) dataCompl = new Date(annoCorrente + 1, nascita.getMonth(), nascita.getDate());
-          const chiave = `compl_${p.id}_${annoCorrente}`;
-          const rec = pasteHook.data.find(x => x.chiave === chiave);
-          lista.push({ chiave, cognome: p.cognome, nome: p.nome, motivo: "🎂 Compleanno", data: dataCompl.toISOString().split("T")[0], portate: rec?.portate || false, dbId: rec?.id || null });
-        });
-
-        lista.sort((a, b) => new Date(a.data) - new Date(b.data));
+        const lista = buildPasteList(rosaHook.data, partiteHook.data, pasteHook.data);
         const daPortare = lista.filter(p => !p.portate);
         const giàPortate = lista.filter(p => p.portate);
 
         const toggle = async (item, nuovoValore) => {
-          if (item.dbId) {
-            // Record già esiste → aggiorna
-            await pasteHook.update(item.dbId, { portate: nuovoValore });
-          } else {
-            // Prima volta → inserisci
-            await pasteHook.upsert({
-              chiave: item.chiave,
-              cognome: item.cognome,
-              nome: item.nome,
-              motivo: item.motivo,
-              data: item.data,
-              portate: nuovoValore,
-            });
-          }
-          // Ricarica la lista paste dal db
-          await pasteHook.refetch();
+          await pasteHook.upsertChiave({
+            chiave: item.chiave,
+            cognome: item.cognome,
+            nome: item.nome,
+            motivo: item.motivo,
+            data: item.data,
+            portate: nuovoValore,
+          });
         };
+
+        const isLoading = rosaHook.loading || partiteHook.loading || pasteHook.loading;
 
         return (
           <div style={styles.card}>
             <div style={styles.cardHeader}>PASTE 🎂</div>
-            {(rosaHook.loading || partiteHook.loading || pasteHook.loading) ? <Spinner /> : <>
+            {isLoading ? <Spinner /> : <>
               {lista.length === 0 && (
-                <div style={{ padding: 16, fontSize: 13, color: COLORS.gray400, textAlign: "center" }}>Nessuna pasta — aggiungi partite con marcatori o giocatori con data di nascita</div>
+                <div style={{ padding: 16, fontSize: 13, color: COLORS.gray400, textAlign: "center" }}>
+                  Nessuna pasta — inserisci partite con marcatori o giocatori con data di nascita
+                </div>
               )}
+
               {daPortare.map((p, i) => (
                 <div key={p.chiave} style={{ padding: "12px 16px", borderBottom: `1px solid ${COLORS.gray100}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: i === 0 ? COLORS.gialloMuted : COLORS.white }}>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 700 }}>{p.cognome} {p.nome}</div>
-                    <div style={{ fontSize: 12, color: COLORS.gray600 }}>{p.motivo} — {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}</div>
+                    <div style={{ fontSize: 12, color: COLORS.gray600 }}>{p.motivo}</div>
+                    <div style={{ fontSize: 11, color: COLORS.gray400 }}>
+                      {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
+                    </div>
                   </div>
                   <button
-                    style={{ background: COLORS.giallo, color: COLORS.bluDark, border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                    style={{ background: COLORS.giallo, color: COLORS.bluDark, border: "none", borderRadius: 6, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}
                     onClick={() => toggle(p, true)}>
                     ✅ Portate
                   </button>
                 </div>
               ))}
+
               {giàPortate.length > 0 && <>
                 <div style={{ background: COLORS.gray50, padding: "6px 16px", fontSize: 11, fontWeight: 700, color: COLORS.gray600, letterSpacing: 1 }}>GIÀ PORTATE</div>
                 {giàPortate.map(p => (
                   <div key={p.chiave} style={{ padding: "12px 16px", borderBottom: `1px solid ${COLORS.gray100}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: COLORS.gray50, opacity: 0.7 }}>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 700, textDecoration: "line-through", color: COLORS.gray600 }}>{p.cognome} {p.nome}</div>
-                      <div style={{ fontSize: 12, color: COLORS.gray400 }}>{p.motivo} — {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}</div>
+                      <div style={{ fontSize: 12, color: COLORS.gray400 }}>{p.motivo}</div>
+                      <div style={{ fontSize: 11, color: COLORS.gray400 }}>
+                        {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
+                      </div>
                     </div>
                     <button
-                      style={{ background: "none", border: `1px solid ${COLORS.gray200}`, borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer", color: COLORS.gray600 }}
+                      style={{ background: "none", border: `1px solid ${COLORS.gray200}`, borderRadius: 6, padding: "8px 14px", fontSize: 12, cursor: "pointer", color: COLORS.gray600, flexShrink: 0 }}
                       onClick={() => toggle(p, false)}>
                       ↩️ Da portare
                     </button>
