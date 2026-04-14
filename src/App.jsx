@@ -724,11 +724,8 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
       {tab === "paste" && (() => {
         const oggi = new Date();
         const annoCorrente = oggi.getFullYear();
-
-        // Genera lista automatica da gol e compleanni
         const lista = [];
 
-        // Gol dalle partite
         partiteHook.data.filter(p => p.fatta && p.marcatori?.length > 0).forEach(p => {
           const conteggio = {};
           p.marcatori.forEach(m => { conteggio[m] = (conteggio[m] || 0) + 1; });
@@ -736,84 +733,80 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
             const giocatore = rosaHook.data.find(r => r.cognome === cognome);
             for (let i = 0; i < numGol; i++) {
               const chiave = `gol_${p.id}_${cognome}_${i}`;
-              const portata = pasteHook.data.find(x => x.chiave === chiave);
-              lista.push({
-                chiave,
-                cognome: giocatore?.cognome || cognome,
-                nome: giocatore?.nome || "",
-                motivo: `⚽ Gol vs ${p.casa === "USOB Bareggio" ? p.ospite : p.casa}`,
-                data: p.data,
-                portate: portata?.portate || false,
-                dbId: portata?.id || null,
-              });
+              const rec = pasteHook.data.find(x => x.chiave === chiave);
+              lista.push({ chiave, cognome: giocatore?.cognome || cognome, nome: giocatore?.nome || "", motivo: `⚽ Gol vs ${p.casa === "USOB Bareggio" ? p.ospite : p.casa}`, data: p.data, portate: rec?.portate || false, dbId: rec?.id || null });
             }
           });
         });
 
-        // Compleanni dalla rosa
         rosaHook.data.filter(p => p.nascita).forEach(p => {
           const nascita = new Date(p.nascita);
           let dataCompl = new Date(annoCorrente, nascita.getMonth(), nascita.getDate());
           if (dataCompl < oggi) dataCompl = new Date(annoCorrente + 1, nascita.getMonth(), nascita.getDate());
           const chiave = `compl_${p.id}_${annoCorrente}`;
-          const portata = pasteHook.data.find(x => x.chiave === chiave);
-          lista.push({
-            chiave,
-            cognome: p.cognome,
-            nome: p.nome,
-            motivo: "🎂 Compleanno",
-            data: dataCompl.toISOString().split("T")[0],
-            portate: portata?.portate || false,
-            dbId: portata?.id || null,
-          });
+          const rec = pasteHook.data.find(x => x.chiave === chiave);
+          lista.push({ chiave, cognome: p.cognome, nome: p.nome, motivo: "🎂 Compleanno", data: dataCompl.toISOString().split("T")[0], portate: rec?.portate || false, dbId: rec?.id || null });
         });
 
         lista.sort((a, b) => new Date(a.data) - new Date(b.data));
         const daPortare = lista.filter(p => !p.portate);
         const giàPortate = lista.filter(p => p.portate);
 
-        const togglePortata = async (item) => {
+        const toggle = async (item, nuovoValore) => {
           if (item.dbId) {
-            await pasteHook.update(item.dbId, { portate: !item.portate });
+            // Record già esiste → aggiorna
+            await pasteHook.update(item.dbId, { portate: nuovoValore });
           } else {
-            await pasteHook.upsert({ chiave: item.chiave, cognome: item.cognome, nome: item.nome, motivo: item.motivo, data: item.data, portate: true });
+            // Prima volta → inserisci
+            await pasteHook.upsert({
+              chiave: item.chiave,
+              cognome: item.cognome,
+              nome: item.nome,
+              motivo: item.motivo,
+              data: item.data,
+              portate: nuovoValore,
+            });
           }
+          // Ricarica la lista paste dal db
+          await pasteHook.refetch();
         };
 
         return (
           <div style={styles.card}>
             <div style={styles.cardHeader}>PASTE 🎂</div>
             {(rosaHook.loading || partiteHook.loading || pasteHook.loading) ? <Spinner /> : <>
-              {daPortare.length === 0 && giàPortate.length === 0 && (
-                <div style={{ padding: 16, fontSize: 13, color: COLORS.gray400, textAlign: "center" }}>Nessuna pasta generata</div>
+              {lista.length === 0 && (
+                <div style={{ padding: 16, fontSize: 13, color: COLORS.gray400, textAlign: "center" }}>Nessuna pasta — aggiungi partite con marcatori o giocatori con data di nascita</div>
               )}
-              {/* Da portare */}
               {daPortare.map((p, i) => (
                 <div key={p.chiave} style={{ padding: "12px 16px", borderBottom: `1px solid ${COLORS.gray100}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: i === 0 ? COLORS.gialloMuted : COLORS.white }}>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 700 }}>{p.cognome} {p.nome}</div>
                     <div style={{ fontSize: 12, color: COLORS.gray600 }}>{p.motivo} — {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}</div>
                   </div>
-                  <button style={{ background: COLORS.giallo, color: COLORS.bluDark, border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                    onClick={() => togglePortata(p)}>✅ Portate</button>
+                  <button
+                    style={{ background: COLORS.giallo, color: COLORS.bluDark, border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                    onClick={() => toggle(p, true)}>
+                    ✅ Portate
+                  </button>
                 </div>
               ))}
-              {/* Già portate */}
-              {giàPortate.length > 0 && (
-                <>
-                  <div style={{ background: COLORS.gray50, padding: "6px 16px", fontSize: 11, fontWeight: 700, color: COLORS.gray600, letterSpacing: 1 }}>GIÀ PORTATE</div>
-                  {giàPortate.map(p => (
-                    <div key={p.chiave} style={{ padding: "12px 16px", borderBottom: `1px solid ${COLORS.gray100}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: COLORS.gray50, opacity: 0.65 }}>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, textDecoration: "line-through", color: COLORS.gray600 }}>{p.cognome} {p.nome}</div>
-                        <div style={{ fontSize: 12, color: COLORS.gray400 }}>{p.motivo} — {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}</div>
-                      </div>
-                      <button style={{ background: "none", border: `1px solid ${COLORS.gray300}`, borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer", color: COLORS.gray600 }}
-                        onClick={() => togglePortata(p)}>↩️ Annulla</button>
+              {giàPortate.length > 0 && <>
+                <div style={{ background: COLORS.gray50, padding: "6px 16px", fontSize: 11, fontWeight: 700, color: COLORS.gray600, letterSpacing: 1 }}>GIÀ PORTATE</div>
+                {giàPortate.map(p => (
+                  <div key={p.chiave} style={{ padding: "12px 16px", borderBottom: `1px solid ${COLORS.gray100}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: COLORS.gray50, opacity: 0.7 }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, textDecoration: "line-through", color: COLORS.gray600 }}>{p.cognome} {p.nome}</div>
+                      <div style={{ fontSize: 12, color: COLORS.gray400 }}>{p.motivo} — {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}</div>
                     </div>
-                  ))}
-                </>
-              )}
+                    <button
+                      style={{ background: "none", border: `1px solid ${COLORS.gray200}`, borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer", color: COLORS.gray600 }}
+                      onClick={() => toggle(p, false)}>
+                      ↩️ Da portare
+                    </button>
+                  </div>
+                ))}
+              </>}
             </>}
           </div>
         );
@@ -959,5 +952,4 @@ export default function App() {
     </div>
   );
 }
-
 
