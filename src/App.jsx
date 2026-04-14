@@ -448,38 +448,81 @@ function AnalyticsSection({ rosa, classifica, loading }) {
 
 // ─── FUN ───────────────────────────────────────────────────────────────────
 
-const PASTE_MOCK = [
-  { cognome: "Esposito", nome: "Fabio", motivo: "Gol vs Castellanza", data: "2024-10-13" },
-  { cognome: "Conti", nome: "Alessandro", motivo: "Compleanno", data: "2024-12-25" },
-  { cognome: "Ricci", nome: "Stefano", motivo: "Compleanno", data: "2025-01-19" },
-  { cognome: "Colombo", nome: "Matteo", motivo: "Gol vs Ossona", data: "2024-09-22" },
-  { cognome: "Romano", nome: "Davide", motivo: "Gol vs Rescaldina", data: "2024-10-06" },
-];
+function FunSection({ rosa, partite }) {
+  const oggi = new Date();
+  const annoCorrente = oggi.getFullYear();
 
-function FunSection() {
-  const sorted = [...PASTE_MOCK].sort((a, b) => new Date(a.data) - new Date(b.data));
+  // Gol: una voce per ogni gol segnato (un giocatore può apparire più volte)
+  const vociGol = [];
+  partite.filter(p => p.fatta && p.marcatori?.length > 0).forEach(p => {
+    // Conta quante volte appare ogni marcatore in questa partita
+    const conteggio = {};
+    p.marcatori.forEach(m => { conteggio[m] = (conteggio[m] || 0) + 1; });
+    Object.entries(conteggio).forEach(([cognome, numGol]) => {
+      // Trova il giocatore nella rosa
+      const giocatore = rosa.find(r => r.cognome === cognome || `${r.cognome} ${r.nome}` === cognome);
+      for (let i = 0; i < numGol; i++) {
+        vociGol.push({
+          cognome: giocatore?.cognome || cognome,
+          nome: giocatore?.nome || "",
+          motivo: `Gol vs ${p.casa === "USOB Bareggio" ? p.ospite : p.casa}`,
+          data: p.data,
+          tipo: "gol",
+        });
+      }
+    });
+  });
+
+  // Compleanni: usa la data di nascita ma con l'anno corrente/prossimo
+  const vociCompleanno = rosa.filter(p => p.nascita).map(p => {
+    const nascita = new Date(p.nascita);
+    let dataQuest = new Date(annoCorrente, nascita.getMonth(), nascita.getDate());
+    // Se il compleanno è già passato quest'anno, metti l'anno prossimo
+    if (dataQuest < oggi) dataQuest = new Date(annoCorrente + 1, nascita.getMonth(), nascita.getDate());
+    return {
+      cognome: p.cognome,
+      nome: p.nome,
+      motivo: "Compleanno 🎉",
+      data: dataQuest.toISOString().split("T")[0],
+      tipo: "compleanno",
+    };
+  });
+
+  // Unisci e ordina cronologicamente
+  const tutto = [...vociGol, ...vociCompleanno].sort((a, b) => new Date(a.data) - new Date(b.data));
+  // Filtra solo quelli dal passato recente (ultimi 30gg) e futuri
+  const trentaGgFa = new Date(oggi); trentaGgFa.setDate(trentaGgFa.getDate() - 30);
+  const lista = tutto.filter(v => new Date(v.data) >= trentaGgFa);
+
   return (
     <div>
       <div style={styles.sectionTitle}>🎂 FUN — LE PASTE</div>
       <div style={{ ...styles.card, marginBottom: 12 }}>
         <div style={{ padding: "12px 16px", background: COLORS.gialloMuted, borderBottom: `1px solid ${COLORS.giallo}` }}>
           <div style={{ fontSize: 13, color: COLORS.bluDark, fontWeight: 600 }}>
-            I giocatori portano le paste quando fanno gol o festeggiano il compleanno. Elenco in ordine cronologico.
+            Le paste si portano per ogni gol segnato e per il compleanno. Elenco in ordine cronologico.
           </div>
         </div>
-        {sorted.map((p, i) => (
-          <div key={i} style={{ padding: "14px 16px", borderBottom: `1px solid ${COLORS.gray100}`, background: i === 0 ? COLORS.gialloMuted : COLORS.white, display: "flex", gap: 12, alignItems: "center" }}>
-            <div style={{ fontSize: 28 }}>🎂</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: 16, color: COLORS.bluDark }}>{p.cognome} {p.nome}</div>
-              <div style={{ fontSize: 12, color: COLORS.gray600 }}>{p.motivo}</div>
-              <div style={{ fontSize: 12, color: COLORS.gray400 }}>
-                {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
+        {lista.length === 0 ? (
+          <div style={{ padding: 16, fontSize: 13, color: COLORS.gray400, textAlign: "center" }}>Nessuna pasta in programma</div>
+        ) : lista.map((p, i) => {
+          const isProssimo = i === 0;
+          const isPassato = new Date(p.data) < oggi;
+          return (
+            <div key={i} style={{ padding: "14px 16px", borderBottom: `1px solid ${COLORS.gray100}`, background: isProssimo ? COLORS.gialloMuted : COLORS.white, display: "flex", gap: 12, alignItems: "center", opacity: isPassato ? 0.5 : 1 }}>
+              <div style={{ fontSize: 28 }}>{p.tipo === "compleanno" ? "🎂" : "⚽"}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 16, color: COLORS.bluDark }}>{p.cognome} {p.nome}</div>
+                <div style={{ fontSize: 12, color: COLORS.gray600 }}>{p.motivo}</div>
+                <div style={{ fontSize: 12, color: COLORS.gray400 }}>
+                  {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
+                </div>
               </div>
+              {isProssimo && !isPassato && <span style={{ ...styles.badge(), fontSize: 11, padding: "4px 10px" }}>PROSSIMO!</span>}
+              {isPassato && <span style={{ ...styles.badge(COLORS.gray200), color: COLORS.gray600, fontSize: 11, padding: "4px 10px" }}>FATTO</span>}
             </div>
-            {i === 0 && <span style={{ ...styles.badge(), fontSize: 11, padding: "4px 10px" }}>PROSSIMO!</span>}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -583,18 +626,63 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
           {editM && (
             <div style={{ ...styles.card, padding: 16, marginBottom: 12 }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.bluDark, marginBottom: 12 }}>{editM.id ? "Modifica partita" : "Nuova partita"}</div>
-              {[["data","Data","date"],["casa","Casa","text"],["ospite","Ospite","text"],["luogo","Luogo","text"],["risultato","Risultato","text"]].map(([f,l,t]) => (
+              {[["data","Data","date"],["casa","Casa","text"],["ospite","Ospite","text"],["luogo","Luogo","text"],["risultato","Risultato (es. 2-1)","text"]].map(([f,l,t]) => (
                 <div key={f}><label style={lbl}>{l}</label>
                   <input style={inp} type={t} value={editM[f] || ""} onChange={e => setEditM({ ...editM, [f]: e.target.value })} />
                 </div>
               ))}
+
+              {/* MARCATORI */}
+              <label style={{ ...lbl, marginTop: 4 }}>⚽ Marcatori</label>
+              <div style={{ background: COLORS.gray50, borderRadius: 8, padding: 10, marginBottom: 6 }}>
+                {(editM.marcatori || []).length === 0 && (
+                  <div style={{ fontSize: 12, color: COLORS.gray400, marginBottom: 6 }}>Nessun marcatore aggiunto</div>
+                )}
+                {(editM.marcatori || []).map((m, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: `1px solid ${COLORS.gray100}` }}>
+                    <span style={{ fontSize: 13 }}>⚽ {m}</span>
+                    <button onClick={() => setEditM({ ...editM, marcatori: editM.marcatori.filter((_, idx) => idx !== i) })}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#c0392b", fontSize: 16, padding: "0 4px" }}>×</button>
+                  </div>
+                ))}
+                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                  <select
+                    id="marcatore-select"
+                    style={{ ...inp, marginBottom: 0, flex: 1 }}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>Seleziona giocatore…</option>
+                    {rosaHook.data.map(p => (
+                      <option key={p.id} value={p.cognome}>{p.cognome} {p.nome}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => {
+                      const sel = document.getElementById("marcatore-select");
+                      if (sel.value) {
+                        setEditM({ ...editM, marcatori: [...(editM.marcatori || []), sel.value] });
+                        sel.value = "";
+                      }
+                    }}
+                    style={{ background: COLORS.blu, color: COLORS.white, border: "none", borderRadius: 6, padding: "0 14px", fontSize: 18, cursor: "pointer", fontWeight: 700 }}>+</button>
+                </div>
+              </div>
+
               <label style={lbl}>Note staff</label>
               <textarea style={{ ...inp, resize: "vertical", minHeight: 60 }} value={editM.note || ""} onChange={e => setEditM({ ...editM, note: e.target.value })} />
               <label style={{ ...lbl, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", marginBottom: 12 }}>
                 <input type="checkbox" checked={!!editM.fatta} onChange={e => setEditM({ ...editM, fatta: e.target.checked })} /> Già giocata
               </label>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button style={saveBtn} disabled={saving} onClick={async () => { setSaving(true); const { id, ...f } = editM; const payload = { ...f, fatta: !!f.fatta, marcatori: f.marcatori || [] }; id ? await partiteHook.update(id, payload) : await partiteHook.upsert(payload); setSaving(false); setEditM(null); }}>{saving ? "…" : "Salva"}</button>
+                <button style={saveBtn} disabled={saving} onClick={async () => {
+                  setSaving(true);
+                  const { id, ...f } = editM;
+                  const payload = { ...f, fatta: !!f.fatta, marcatori: f.marcatori || [] };
+                  if (id) await partiteHook.update(id, payload);
+                  else await partiteHook.upsert(payload);
+                  setSaving(false);
+                  setEditM(null);
+                }}>{saving ? "…" : "Salva"}</button>
                 <button style={cancelBtn} onClick={() => setEditM(null)}>Annulla</button>
                 {editM.id && <button style={delBtn} onClick={async () => { await partiteHook.remove(editM.id); setEditM(null); }}>Elimina</button>}
               </div>
@@ -610,6 +698,7 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
                 <div>
                   <div style={{ fontSize: 11, color: COLORS.gray600 }}>{new Date(p.data).toLocaleDateString("it-IT")}</div>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{p.casa} vs {p.ospite}</div>
+                  {p.marcatori?.length > 0 && <div style={{ fontSize: 11, color: COLORS.gray600 }}>⚽ {p.marcatori.join(", ")}</div>}
                   {p.note ? <div style={{ fontSize: 11, color: COLORS.gray400 }}>📝 {p.note.slice(0,40)}{p.note.length > 40 ? "…" : ""}</div> : null}
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -712,7 +801,7 @@ export default function App() {
         {section === "home" && <HomeSection rosa={rosaHook.data} partite={partiteHook.data} classifica={classificaHook.data} loading={globalLoading} />}
         {section === "calendario" && <CalendarioSection partite={partiteHook.data} classifica={classificaHook.data} loading={partiteHook.loading} />}
         {section === "analytics" && <AnalyticsSection rosa={rosaHook.data} classifica={classificaHook.data} loading={globalLoading} />}
-        {section === "fun" && <FunSection />}
+        {section === "fun" && <FunSection rosa={rosaHook.data} partite={partiteHook.data} />}
         {section === "area" && <AreaRiservataSection rosaHook={rosaHook} partiteHook={partiteHook} classificaHook={classificaHook} squadreHook={squadreHook} />}
       </main>
 
