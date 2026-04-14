@@ -51,24 +51,24 @@ function useTable(table, orderBy = "id") {
 
   // Inserisce o aggiorna in base alla colonna "chiave"
   const upsertChiave = async (row) => {
-    // Prima cerca se esiste già
+    // Cerca se esiste già (usando filter per evitare errore 406)
     const { data: existing } = await supabase
       .from(table)
       .select("id")
       .eq("chiave", row.chiave)
-      .single();
+      .limit(1);
 
-    if (existing) {
-      // Esiste → aggiorna per id
+    const found = existing && existing.length > 0 ? existing[0] : null;
+
+    if (found) {
+      // Esiste → aggiorna
       const { data: result } = await supabase
         .from(table)
         .update(row)
-        .eq("id", existing.id)
+        .eq("id", found.id)
         .select()
         .single();
-      if (result) {
-        setData(prev => prev.map(r => r.id === existing.id ? result : r));
-      }
+      if (result) setData(prev => prev.map(r => r.id === found.id ? result : r));
       return result;
     } else {
       // Non esiste → inserisci
@@ -77,9 +77,7 @@ function useTable(table, orderBy = "id") {
         .insert(row)
         .select()
         .single();
-      if (result) {
-        setData(prev => [...prev, result]);
-      }
+      if (result) setData(prev => [...prev, result]);
       return result;
     }
   };
@@ -956,7 +954,7 @@ export default function App() {
   const partiteHook = useTable("partite", "data");
   const classificaHook = useTable("classifica", "pt");
   const squadreHook = useTable("squadre", "nome");
-  const pasteHook = useTable("paste", "data");
+  const pasteHook = useTable("paste", "id");
   const globalLoading = rosaHook.loading || partiteHook.loading || classificaHook.loading;
 
   const navItems = [
