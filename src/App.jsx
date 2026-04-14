@@ -626,11 +626,23 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
           {editM && (
             <div style={{ ...styles.card, padding: 16, marginBottom: 12 }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.bluDark, marginBottom: 12 }}>{editM.id ? "Modifica partita" : "Nuova partita"}</div>
-              {[["data","Data","date"],["casa","Casa","text"],["ospite","Ospite","text"],["luogo","Luogo","text"],["risultato","Risultato (es. 2-1)","text"]].map(([f,l,t]) => (
-                <div key={f}><label style={lbl}>{l}</label>
-                  <input style={inp} type={t} value={editM[f] || ""} onChange={e => setEditM({ ...editM, [f]: e.target.value })} />
-                </div>
-              ))}
+              {/* Casa e Ospite come dropdown */}
+              <label style={lbl}>Data</label>
+              <input style={inp} type="date" value={editM.data || ""} onChange={e => setEditM({ ...editM, data: e.target.value })} />
+              <label style={lbl}>Casa</label>
+              <select style={inp} value={editM.casa || ""} onChange={e => setEditM({ ...editM, casa: e.target.value })}>
+                <option value="" disabled>Seleziona squadra…</option>
+                {squadreHook.data.map(s => <option key={s.id} value={s.nome}>{s.nome}</option>)}
+              </select>
+              <label style={lbl}>Ospite</label>
+              <select style={inp} value={editM.ospite || ""} onChange={e => setEditM({ ...editM, ospite: e.target.value })}>
+                <option value="" disabled>Seleziona squadra…</option>
+                {squadreHook.data.map(s => <option key={s.id} value={s.nome}>{s.nome}</option>)}
+              </select>
+              <label style={lbl}>Luogo</label>
+              <input style={inp} type="text" value={editM.luogo || ""} onChange={e => setEditM({ ...editM, luogo: e.target.value })} />
+              <label style={lbl}>Risultato (es. 2-1)</label>
+              <input style={inp} type="text" value={editM.risultato || ""} onChange={e => setEditM({ ...editM, risultato: e.target.value })} />
 
               {/* MARCATORI */}
               <label style={{ ...lbl, marginTop: 4 }}>⚽ Marcatori</label>
@@ -723,9 +735,33 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
                 </div>
               ))}
               <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                <button style={saveBtn} disabled={saving} onClick={async () => { setSaving(true); const { id, ...f } = editS; id ? await squadreHook.update(id, f) : await squadreHook.upsert(f); setSaving(false); setEditS(null); }}>{saving ? "…" : "Salva"}</button>
+                <button style={saveBtn} disabled={saving} onClick={async () => {
+                  setSaving(true);
+                  const { id, ...f } = editS;
+                  if (id) {
+                    // Se il nome è cambiato, aggiorna anche la classifica
+                    const vecchio = squadreHook.data.find(s => s.id === id);
+                    if (vecchio && vecchio.nome !== f.nome) {
+                      const vInClass = classificaHook.data.find(c => c.squadra === vecchio.nome);
+                      if (vInClass) await classificaHook.update(vInClass.id, { squadra: f.nome });
+                    }
+                    await squadreHook.update(id, f);
+                  } else {
+                    // Nuova squadra → aggiungila anche in classifica con 0 punti
+                    await squadreHook.upsert(f);
+                    await classificaHook.upsert({ squadra: f.nome, g: 0, v: 0, p: 0, s: 0, gf: 0, gs: 0, pt: 0 });
+                  }
+                  setSaving(false);
+                  setEditS(null);
+                }}>{saving ? "…" : "Salva"}</button>
                 <button style={cancelBtn} onClick={() => setEditS(null)}>Annulla</button>
-                {editS.id && <button style={delBtn} onClick={async () => { await squadreHook.remove(editS.id); setEditS(null); }}>Elimina</button>}
+                {editS.id && <button style={delBtn} onClick={async () => {
+                  // Elimina anche dalla classifica
+                  const inClass = classificaHook.data.find(c => c.squadra === editS.nome);
+                  if (inClass) await classificaHook.remove(inClass.id);
+                  await squadreHook.remove(editS.id);
+                  setEditS(null);
+                }}>Elimina</button>}
               </div>
             </div>
           )}
