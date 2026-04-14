@@ -448,89 +448,63 @@ function AnalyticsSection({ rosa, classifica, loading }) {
 
 // ─── FUN ───────────────────────────────────────────────────────────────────
 
-function FunSection({ rosa, partite }) {
-  const oggi = new Date();
-  const annoCorrente = oggi.getFullYear();
+function FunSection({ paste, loading }) {
+  const daPortare = [...paste].filter(p => !p.portate).sort((a, b) => new Date(a.data) - new Date(b.data));
+  const portate = [...paste].filter(p => p.portate).sort((a, b) => new Date(a.data) - new Date(b.data));
 
-  // Gol: una voce per ogni gol segnato (un giocatore può apparire più volte)
-  const vociGol = [];
-  partite.filter(p => p.fatta && p.marcatori?.length > 0).forEach(p => {
-    // Conta quante volte appare ogni marcatore in questa partita
-    const conteggio = {};
-    p.marcatori.forEach(m => { conteggio[m] = (conteggio[m] || 0) + 1; });
-    Object.entries(conteggio).forEach(([cognome, numGol]) => {
-      // Trova il giocatore nella rosa
-      const giocatore = rosa.find(r => r.cognome === cognome || `${r.cognome} ${r.nome}` === cognome);
-      for (let i = 0; i < numGol; i++) {
-        vociGol.push({
-          cognome: giocatore?.cognome || cognome,
-          nome: giocatore?.nome || "",
-          motivo: `Gol vs ${p.casa === "USOB Bareggio" ? p.ospite : p.casa}`,
-          data: p.data,
-          tipo: "gol",
-        });
-      }
-    });
-  });
-
-  // Compleanni: usa la data di nascita ma con l'anno corrente/prossimo
-  const vociCompleanno = rosa.filter(p => p.nascita).map(p => {
-    const nascita = new Date(p.nascita);
-    let dataQuest = new Date(annoCorrente, nascita.getMonth(), nascita.getDate());
-    // Se il compleanno è già passato quest'anno, metti l'anno prossimo
-    if (dataQuest < oggi) dataQuest = new Date(annoCorrente + 1, nascita.getMonth(), nascita.getDate());
-    return {
-      cognome: p.cognome,
-      nome: p.nome,
-      motivo: "Compleanno 🎉",
-      data: dataQuest.toISOString().split("T")[0],
-      tipo: "compleanno",
-    };
-  });
-
-  // Unisci e ordina cronologicamente
-  const tutto = [...vociGol, ...vociCompleanno].sort((a, b) => new Date(a.data) - new Date(b.data));
-  // Filtra solo quelli dal passato recente (ultimi 30gg) e futuri
-  const trentaGgFa = new Date(oggi); trentaGgFa.setDate(trentaGgFa.getDate() - 30);
-  const lista = tutto.filter(v => new Date(v.data) >= trentaGgFa);
+  const PastaRow = ({ p, isFirst }) => (
+    <div style={{ padding: "14px 16px", borderBottom: `1px solid ${COLORS.gray100}`, background: isFirst ? COLORS.gialloMuted : COLORS.white, display: "flex", gap: 12, alignItems: "center" }}>
+      <div style={{ fontSize: 28 }}>{p.motivo?.includes("Compleanno") ? "🎂" : "⚽"}</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 800, fontSize: 16, color: COLORS.bluDark }}>{p.cognome} {p.nome}</div>
+        <div style={{ fontSize: 12, color: COLORS.gray600 }}>{p.motivo}</div>
+        <div style={{ fontSize: 12, color: COLORS.gray400 }}>
+          {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
+        </div>
+      </div>
+      {isFirst && <span style={{ ...styles.badge(), fontSize: 11, padding: "4px 10px" }}>PROSSIMO!</span>}
+    </div>
+  );
 
   return (
     <div>
       <div style={styles.sectionTitle}>🎂 FUN — LE PASTE</div>
-      <div style={{ ...styles.card, marginBottom: 12 }}>
-        <div style={{ padding: "12px 16px", background: COLORS.gialloMuted, borderBottom: `1px solid ${COLORS.giallo}` }}>
-          <div style={{ fontSize: 13, color: COLORS.bluDark, fontWeight: 600 }}>
-            Le paste si portano per ogni gol segnato e per il compleanno. Elenco in ordine cronologico.
+      {loading ? <Spinner /> : <>
+        <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.gray600, letterSpacing: 1, marginBottom: 6, paddingLeft: 4 }}>DA PORTARE</div>
+        <div style={{ ...styles.card, marginBottom: 14 }}>
+          <div style={{ padding: "12px 16px", background: COLORS.gialloMuted, borderBottom: `1px solid ${COLORS.giallo}` }}>
+            <div style={{ fontSize: 13, color: COLORS.bluDark, fontWeight: 600 }}>
+              Le paste si portano per ogni gol segnato e per il compleanno. In ordine cronologico.
+            </div>
           </div>
+          {daPortare.length === 0
+            ? <div style={{ padding: 16, fontSize: 13, color: COLORS.gray400, textAlign: "center" }}>Nessuna pasta in programma 🎉</div>
+            : daPortare.map((p, i) => <PastaRow key={p.id} p={p} isFirst={i === 0} />)
+          }
         </div>
-        {lista.length === 0 ? (
-          <div style={{ padding: 16, fontSize: 13, color: COLORS.gray400, textAlign: "center" }}>Nessuna pasta in programma</div>
-        ) : lista.map((p, i) => {
-          const isProssimo = i === 0;
-          const isPassato = new Date(p.data) < oggi;
-          return (
-            <div key={i} style={{ padding: "14px 16px", borderBottom: `1px solid ${COLORS.gray100}`, background: isProssimo ? COLORS.gialloMuted : COLORS.white, display: "flex", gap: 12, alignItems: "center", opacity: isPassato ? 0.5 : 1 }}>
-              <div style={{ fontSize: 28 }}>{p.tipo === "compleanno" ? "🎂" : "⚽"}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 800, fontSize: 16, color: COLORS.bluDark }}>{p.cognome} {p.nome}</div>
-                <div style={{ fontSize: 12, color: COLORS.gray600 }}>{p.motivo}</div>
-                <div style={{ fontSize: 12, color: COLORS.gray400 }}>
-                  {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
+
+        {portate.length > 0 && <>
+          <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.gray600, letterSpacing: 1, marginBottom: 6, paddingLeft: 4 }}>GIÀ PORTATE ✅</div>
+          <div style={{ ...styles.card, opacity: 0.6 }}>
+            {portate.map((p, i) => (
+              <div key={p.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${COLORS.gray100}`, display: "flex", gap: 12, alignItems: "center" }}>
+                <div style={{ fontSize: 22 }}>✅</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: COLORS.gray600, textDecoration: "line-through" }}>{p.cognome} {p.nome}</div>
+                  <div style={{ fontSize: 12, color: COLORS.gray400 }}>{p.motivo} — {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long" })}</div>
                 </div>
               </div>
-              {isProssimo && !isPassato && <span style={{ ...styles.badge(), fontSize: 11, padding: "4px 10px" }}>PROSSIMO!</span>}
-              {isPassato && <span style={{ ...styles.badge(COLORS.gray200), color: COLORS.gray600, fontSize: 11, padding: "4px 10px" }}>FATTO</span>}
-            </div>
-          );
-        })}
-      </div>
+            ))}
+          </div>
+        </>}
+      </>}
     </div>
   );
 }
 
 // ─── AREA RISERVATA ────────────────────────────────────────────────────────
 
-function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHook }) {
+function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHook, pasteHook }) {
   const [unlocked, setUnlocked] = useState(false);
   const [pwd, setPwd] = useState("");
   const [error, setError] = useState(false);
@@ -538,6 +512,7 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
   const [editP, setEditP] = useState(null);
   const [editM, setEditM] = useState(null);
   const [editS, setEditS] = useState(null);
+  const [editPasta, setEditPasta] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const inp = { width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${COLORS.gray200}`, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 6 };
@@ -566,7 +541,7 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
     );
   }
 
-  const tabs = [{ id: "rosa", label: "Rosa" }, { id: "partite", label: "Partite" }, { id: "squadre", label: "Squadre" }, { id: "classifica", label: "Classifica" }];
+  const tabs = [{ id: "rosa", label: "Rosa" }, { id: "partite", label: "Partite" }, { id: "paste", label: "Paste 🎂" }, { id: "squadre", label: "Squadre" }, { id: "classifica", label: "Classifica" }];
 
   return (
     <div>
@@ -723,6 +698,89 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
         </div>
       )}
 
+      {/* PASTE */}
+      {tab === "paste" && (
+        <div>
+          {editPasta && (
+            <div style={{ ...styles.card, padding: 16, marginBottom: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.bluDark, marginBottom: 12 }}>
+                {editPasta.id ? "Modifica pasta" : "Nuova pasta"}
+              </div>
+              <label style={lbl}>Giocatore</label>
+              <select style={inp} value={editPasta.cognome || ""} onChange={e => {
+                const g = rosaHook.data.find(r => r.cognome === e.target.value);
+                setEditPasta({ ...editPasta, cognome: g?.cognome || "", nome: g?.nome || "" });
+              }}>
+                <option value="" disabled>Seleziona giocatore…</option>
+                {rosaHook.data.map(p => <option key={p.id} value={p.cognome}>{p.cognome} {p.nome}</option>)}
+              </select>
+              <label style={lbl}>Motivo</label>
+              <input style={inp} type="text" placeholder="es. Gol vs Nerviano / Compleanno" value={editPasta.motivo || ""}
+                onChange={e => setEditPasta({ ...editPasta, motivo: e.target.value })} />
+              <label style={lbl}>Data</label>
+              <input style={inp} type="date" value={editPasta.data || ""}
+                onChange={e => setEditPasta({ ...editPasta, data: e.target.value })} />
+              <label style={{ ...lbl, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", marginBottom: 12 }}>
+                <input type="checkbox" checked={!!editPasta.portate} onChange={e => setEditPasta({ ...editPasta, portate: e.target.checked })} />
+                Paste già portate ✅
+              </label>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button style={saveBtn} disabled={saving} onClick={async () => {
+                  setSaving(true);
+                  const { id, ...f } = editPasta;
+                  if (id) await pasteHook.update(id, { ...f, portate: !!f.portate });
+                  else await pasteHook.upsert({ ...f, portate: !!f.portate });
+                  setSaving(false);
+                  setEditPasta(null);
+                }}>{saving ? "…" : "Salva"}</button>
+                <button style={cancelBtn} onClick={() => setEditPasta(null)}>Annulla</button>
+                {editPasta.id && <button style={delBtn} onClick={async () => { await pasteHook.remove(editPasta.id); setEditPasta(null); }}>Elimina</button>}
+              </div>
+            </div>
+          )}
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>PASTE 🎂
+              <button style={{ background: COLORS.giallo, color: COLORS.bluDark, border: "none", borderRadius: 6, padding: "4px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                onClick={() => setEditPasta({ cognome: "", nome: "", motivo: "", data: "", portate: false })}>+ Aggiungi</button>
+            </div>
+            {pasteHook.loading ? <Spinner /> : (
+              <>
+                {/* Da portare */}
+                {pasteHook.data.filter(p => !p.portate).sort((a, b) => new Date(a.data) - new Date(b.data)).map(p => (
+                  <div key={p.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${COLORS.gray100}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: COLORS.white }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}>{p.cognome} {p.nome}</div>
+                      <div style={{ fontSize: 12, color: COLORS.gray600 }}>{p.motivo} — {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long" })}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <button style={{ background: COLORS.giallo, color: COLORS.bluDark, border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                        onClick={() => pasteHook.update(p.id, { portate: true })}>✅ Portate</button>
+                      <button style={{ background: "none", border: `1px solid ${COLORS.gray200}`, borderRadius: 6, padding: "4px 8px", fontSize: 11, cursor: "pointer" }}
+                        onClick={() => setEditPasta({ ...p })}>✏️</button>
+                    </div>
+                  </div>
+                ))}
+                {/* Già portate */}
+                {pasteHook.data.filter(p => p.portate).sort((a, b) => new Date(a.data) - new Date(b.data)).map(p => (
+                  <div key={p.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${COLORS.gray100}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: COLORS.gray50, opacity: 0.6 }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, textDecoration: "line-through", color: COLORS.gray600 }}>{p.cognome} {p.nome}</div>
+                      <div style={{ fontSize: 12, color: COLORS.gray400 }}>{p.motivo} — {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long" })}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <button style={{ background: "none", border: `1px solid ${COLORS.gray200}`, borderRadius: 6, padding: "4px 10px", fontSize: 11, cursor: "pointer", color: COLORS.gray600 }}
+                        onClick={() => pasteHook.update(p.id, { portate: false })}>↩️ Ripristina</button>
+                      <button style={{ background: "none", border: `1px solid ${COLORS.gray200}`, borderRadius: 6, padding: "4px 8px", fontSize: 11, cursor: "pointer" }}
+                        onClick={() => setEditPasta({ ...p })}>✏️</button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* SQUADRE */}
       {tab === "squadre" && (
         <div>
@@ -814,6 +872,7 @@ export default function App() {
   const partiteHook = useTable("partite", "data");
   const classificaHook = useTable("classifica", "pt");
   const squadreHook = useTable("squadre", "nome");
+  const pasteHook = useTable("paste", "data");
   const globalLoading = rosaHook.loading || partiteHook.loading || classificaHook.loading;
 
   const navItems = [
@@ -837,8 +896,8 @@ export default function App() {
         {section === "home" && <HomeSection rosa={rosaHook.data} partite={partiteHook.data} classifica={classificaHook.data} loading={globalLoading} />}
         {section === "calendario" && <CalendarioSection partite={partiteHook.data} classifica={classificaHook.data} loading={partiteHook.loading} />}
         {section === "analytics" && <AnalyticsSection rosa={rosaHook.data} classifica={classificaHook.data} loading={globalLoading} />}
-        {section === "fun" && <FunSection rosa={rosaHook.data} partite={partiteHook.data} />}
-        {section === "area" && <AreaRiservataSection rosaHook={rosaHook} partiteHook={partiteHook} classificaHook={classificaHook} squadreHook={squadreHook} />}
+        {section === "fun" && <FunSection paste={pasteHook.data} loading={pasteHook.loading} />}
+        {section === "area" && <AreaRiservataSection rosaHook={rosaHook} partiteHook={partiteHook} classificaHook={classificaHook} squadreHook={squadreHook} pasteHook={pasteHook} />}
       </main>
 
       <nav style={styles.nav}>
@@ -862,3 +921,4 @@ export default function App() {
     </div>
   );
 }
+
