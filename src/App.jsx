@@ -49,21 +49,39 @@ function useTable(table, orderBy = "id") {
     setData(prev => prev.filter(r => r.id !== id));
   };
 
-  // Inserisce o aggiorna in base alla colonna "chiave" (upsert semantico)
+  // Inserisce o aggiorna in base alla colonna "chiave"
   const upsertChiave = async (row) => {
-    const { data: result, error } = await supabase
+    // Prima cerca se esiste già
+    const { data: existing } = await supabase
       .from(table)
-      .upsert(row, { onConflict: "chiave" })
-      .select()
+      .select("id")
+      .eq("chiave", row.chiave)
       .single();
-    if (result) {
-      setData(prev => {
-        const idx = prev.findIndex(r => r.chiave === row.chiave);
-        if (idx >= 0) { const next = [...prev]; next[idx] = result; return next; }
-        return [...prev, result];
-      });
+
+    if (existing) {
+      // Esiste → aggiorna per id
+      const { data: result } = await supabase
+        .from(table)
+        .update(row)
+        .eq("id", existing.id)
+        .select()
+        .single();
+      if (result) {
+        setData(prev => prev.map(r => r.id === existing.id ? result : r));
+      }
+      return result;
+    } else {
+      // Non esiste → inserisci
+      const { data: result } = await supabase
+        .from(table)
+        .insert(row)
+        .select()
+        .single();
+      if (result) {
+        setData(prev => [...prev, result]);
+      }
+      return result;
     }
-    return result;
   };
 
   return { data, loading, refetch: fetch, upsert, update, remove, upsertChiave };
