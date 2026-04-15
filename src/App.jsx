@@ -519,11 +519,9 @@ function buildPasteList(rosa, partite, pasteDb) {
   const annoCorrente = oggi.getFullYear();
   const lista = [];
 
-  // 1. Un gol = una pasta, con data della partita
   partite
     .filter(p => p.fatta && Array.isArray(p.marcatori) && p.marcatori.length > 0)
     .forEach(partita => {
-      // Conta quante volte ogni cognome appare nei marcatori
       const conteggio = {};
       partita.marcatori.forEach(m => { conteggio[m] = (conteggio[m] || 0) + 1; });
       Object.entries(conteggio).forEach(([cognome, numGol]) => {
@@ -540,18 +538,17 @@ function buildPasteList(rosa, partite, pasteDb) {
             data: partita.data,
             portate: rec ? rec.portate : false,
             dbId: rec ? rec.id : null,
+            ordine: rec?.ordine ?? null,
           });
         }
       });
     });
 
-  // 2. Un compleanno = una pasta, con data del prossimo compleanno
   rosa
     .filter(g => g.nascita)
     .forEach(g => {
       const nascita = new Date(g.nascita);
       let dataCompl = new Date(annoCorrente, nascita.getMonth(), nascita.getDate());
-      // Se il compleanno è già passato quest'anno, usa l'anno prossimo
       if (dataCompl < oggi) {
         dataCompl = new Date(annoCorrente + 1, nascita.getMonth(), nascita.getDate());
       }
@@ -565,11 +562,20 @@ function buildPasteList(rosa, partite, pasteDb) {
         data: dataCompl.toISOString().split("T")[0],
         portate: rec ? rec.portate : false,
         dbId: rec ? rec.id : null,
+        ordine: rec?.ordine ?? null,
       });
     });
 
-  // Ordine cronologico
-  lista.sort((a, b) => new Date(a.data) - new Date(b.data));
+  // Ordina: prima per ordine personalizzato (se impostato), poi per data
+  lista.sort((a, b) => {
+    const aOrd = a.ordine !== null && a.ordine !== undefined;
+    const bOrd = b.ordine !== null && b.ordine !== undefined;
+    if (aOrd && bOrd) return a.ordine - b.ordine;
+    if (aOrd) return -1;
+    if (bOrd) return 1;
+    return new Date(a.data) - new Date(b.data);
+  });
+
   return lista;
 }
 
