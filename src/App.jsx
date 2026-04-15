@@ -190,11 +190,34 @@ const Spinner = () => (
 function HomeSection({ rosa, partite, classifica, loading }) {
   const [expanded, setExpanded] = useState(false);
   const prossimi = partite.filter(p => !p.fatta).slice(0, 3);
-  const marcatori = [...rosa].filter(p => p.gol > 0).sort((a, b) => b.gol - a.gol).slice(0, 5);
+
+  // Gol fatti: contati dai marcatori delle partite reali
+  const totalGol = partite
+    .filter(p => p.fatta && Array.isArray(p.marcatori))
+    .reduce((tot, p) => tot + p.marcatori.filter(m => {
+      const g = rosa.find(r => r.cognome === m);
+      return g !== undefined; // conta solo i gol dei nostri giocatori
+    }).length, 0);
+
+  // Marcatori: conta i gol per giocatore dalle partite
+  const golPerGiocatore = {};
+  partite.filter(p => p.fatta && Array.isArray(p.marcatori)).forEach(p => {
+    p.marcatori.forEach(m => {
+      golPerGiocatore[m] = (golPerGiocatore[m] || 0) + 1;
+    });
+  });
+  const marcatori = rosa
+    .map(g => ({ ...g, golReali: golPerGiocatore[g.cognome] || 0 }))
+    .filter(g => g.golReali > 0)
+    .sort((a, b) => b.golReali - a.golReali)
+    .slice(0, 5);
+
+  // Classifica: trova USOB (prima squadra in classifica con "USOB" nel nome, oppure la prima)
   const sorted = [...classifica].sort((a, b) => b.pt - a.pt);
-  const myPos = sorted.findIndex(c => c.squadra === "USOB Bareggio") + 1;
-  const myPt = classifica.find(c => c.squadra === "USOB Bareggio")?.pt || 0;
-  const totalGol = rosa.reduce((s, p) => s + (p.gol || 0), 0);
+  const usob = classifica.find(c => c.squadra?.toLowerCase().includes("usob") || c.squadra?.toLowerCase().includes("bareggio"));
+  const myPos = usob ? sorted.findIndex(c => c.id === usob.id) + 1 : "–";
+  const myPt = usob?.pt ?? "–";
+
   const rosaVisible = expanded ? rosa : rosa.slice(0, 5);
 
   return (
@@ -271,7 +294,7 @@ function HomeSection({ rosa, partite, classifica, loading }) {
               <span style={{ fontWeight: 700 }}>{p.cognome}</span> {p.nome}
               <span style={{ fontSize: 11, color: COLORS.gray600, display: "block" }}>{p.ruolo}</span>
             </div>
-            <div style={{ ...styles.badge(), fontSize: 14, fontWeight: 900 }}>{p.gol} ⚽</div>
+            <div style={{ ...styles.badge(), fontSize: 14, fontWeight: 900 }}>{p.golReali} ⚽</div>
           </div>
         ))}
       </div>
@@ -398,9 +421,17 @@ function CalendarioSection({ partite, classifica, loading }) {
 
 // ─── ANALYTICS ─────────────────────────────────────────────────────────────
 
-function AnalyticsSection({ rosa, classifica, loading }) {
-  const marcatori = [...rosa].filter(p => p.gol > 0).sort((a, b) => b.gol - a.gol);
-  const maxGol = marcatori[0]?.gol || 1;
+function AnalyticsSection({ rosa, partite, classifica, loading }) {
+  // Conta i gol dai marcatori delle partite reali
+  const golPerGiocatore = {};
+  partite.filter(p => p.fatta && Array.isArray(p.marcatori)).forEach(p => {
+    p.marcatori.forEach(m => { golPerGiocatore[m] = (golPerGiocatore[m] || 0) + 1; });
+  });
+  const marcatori = rosa
+    .map(g => ({ ...g, golReali: golPerGiocatore[g.cognome] || 0 }))
+    .filter(g => g.golReali > 0)
+    .sort((a, b) => b.golReali - a.golReali);
+  const maxGol = marcatori[0]?.golReali || 1;
   const sorted = [...classifica].sort((a, b) => b.pt - a.pt);
   const ruoli = ["Portiere", "Difensore", "Centrocampista", "Attaccante"];
 
@@ -410,14 +441,16 @@ function AnalyticsSection({ rosa, classifica, loading }) {
       {loading ? <Spinner /> : <>
         <div style={styles.card}>
           <div style={styles.cardHeader}>⚽ MARCATORI</div>
-          {marcatori.map((p, i) => (
+          {marcatori.length === 0
+            ? <div style={{ padding: 16, fontSize: 13, color: COLORS.gray400, textAlign: "center" }}>Nessun gol registrato</div>
+            : marcatori.map((p, i) => (
             <div key={p.id} style={{ padding: "10px 16px", borderBottom: `1px solid ${COLORS.gray100}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                 <span style={{ fontWeight: 700, fontSize: 14 }}>{p.cognome} {p.nome}</span>
-                <span style={{ ...styles.badge(), fontWeight: 800, fontSize: 13 }}>{p.gol} ⚽</span>
+                <span style={{ ...styles.badge(), fontWeight: 800, fontSize: 13 }}>{p.golReali} ⚽</span>
               </div>
               <div style={{ height: 6, background: COLORS.gray100, borderRadius: 3, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${(p.gol / maxGol) * 100}%`, background: i === 0 ? COLORS.giallo : COLORS.blu, borderRadius: 3 }} />
+                <div style={{ height: "100%", width: `${(p.golReali / maxGol) * 100}%`, background: i === 0 ? COLORS.giallo : COLORS.blu, borderRadius: 3 }} />
               </div>
             </div>
           ))}
@@ -928,7 +961,7 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
       {tab === "classifica" && (
         <div style={styles.card}>
           <div style={styles.cardHeader}>GESTIONE CLASSIFICA</div>
-          {classificaHook.loading ? <Spinner /> : [...classificaHook.data].sort((a, b) => b.pt - a.pt).map((c, i) => (
+          {classificaHook.loading ? <Spinner /> : classificaHook.data.map((c, i) => (
             <div key={c.id} style={{ padding: "10px 16px", borderBottom: `1px solid ${COLORS.gray100}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 14, fontWeight: c.squadra === "USOB Bareggio" ? 800 : 400, color: COLORS.bluDark }}>{i + 1}. {c.squadra}</span>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -977,7 +1010,7 @@ export default function App() {
       <main style={styles.content}>
         {section === "home" && <HomeSection rosa={rosaHook.data} partite={partiteHook.data} classifica={classificaHook.data} loading={globalLoading} />}
         {section === "calendario" && <CalendarioSection partite={partiteHook.data} classifica={classificaHook.data} loading={partiteHook.loading} />}
-        {section === "analytics" && <AnalyticsSection rosa={rosaHook.data} classifica={classificaHook.data} loading={globalLoading} />}
+        {section === "analytics" && <AnalyticsSection rosa={rosaHook.data} partite={partiteHook.data} classifica={classificaHook.data} loading={globalLoading} />}
         {section === "fun" && <FunSection rosa={rosaHook.data} partite={partiteHook.data} paste={pasteHook.data} loading={globalLoading || pasteHook.loading} />}
         {section === "area" && <AreaRiservataSection rosaHook={rosaHook} partiteHook={partiteHook} classificaHook={classificaHook} squadreHook={squadreHook} pasteHook={pasteHook} />}
       </main>
