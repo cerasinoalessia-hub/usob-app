@@ -630,6 +630,106 @@ function FunSection({ rosa, partite, paste, loading }) {
   );
 }
 
+// ─── Drag & Drop lista paste ───────────────────────────────────────────────
+
+function PastaDragList({ items, onReorder, onToggle }) {
+  const [dragging, setDragging] = useState(null);
+  const [over, setOver] = useState(null);
+  const [localItems, setLocalItems] = useState(items);
+
+  useEffect(() => { setLocalItems(items); }, [items]);
+
+  // Touch drag state
+  const touchData = { startY: 0, startIndex: null };
+
+  const handleDragStart = (i) => setDragging(i);
+  const handleDragOver = (e, i) => { e.preventDefault(); setOver(i); };
+  const handleDrop = (i) => {
+    if (dragging === null || dragging === i) { setDragging(null); setOver(null); return; }
+    const newList = [...localItems];
+    const [moved] = newList.splice(dragging, 1);
+    newList.splice(i, 0, moved);
+    setLocalItems(newList);
+    setDragging(null);
+    setOver(null);
+    onReorder(newList);
+  };
+
+  // Touch support
+  const handleTouchStart = (e, i) => {
+    touchData.startY = e.touches[0].clientY;
+    touchData.startIndex = i;
+    setDragging(i);
+  };
+  const handleTouchMove = (e) => {
+    e.preventDefault();
+    const y = e.touches[0].clientY;
+    const elements = document.querySelectorAll("[data-pasta-row]");
+    let targetIndex = touchData.startIndex;
+    elements.forEach((el, idx) => {
+      const rect = el.getBoundingClientRect();
+      if (y >= rect.top && y <= rect.bottom) targetIndex = idx;
+    });
+    setOver(targetIndex);
+  };
+  const handleTouchEnd = () => {
+    if (over !== null && over !== dragging) {
+      const newList = [...localItems];
+      const [moved] = newList.splice(dragging, 1);
+      newList.splice(over, 0, moved);
+      setLocalItems(newList);
+      onReorder(newList);
+    }
+    setDragging(null);
+    setOver(null);
+  };
+
+  return (
+    <div>
+      {localItems.map((p, i) => (
+        <div
+          key={p.chiave}
+          data-pasta-row={i}
+          draggable
+          onDragStart={() => handleDragStart(i)}
+          onDragOver={(e) => handleDragOver(e, i)}
+          onDrop={() => handleDrop(i)}
+          onDragEnd={() => { setDragging(null); setOver(null); }}
+          onTouchStart={(e) => handleTouchStart(e, i)}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          style={{
+            padding: "10px 16px",
+            borderBottom: `1px solid ${COLORS.gray100}`,
+            display: "flex", alignItems: "center", gap: 10,
+            background: over === i ? COLORS.gialloMuted : i === 0 ? COLORS.gialloMuted : COLORS.white,
+            opacity: dragging === i ? 0.4 : 1,
+            cursor: "grab",
+            borderLeft: over === i && dragging !== i ? `3px solid ${COLORS.blu}` : "3px solid transparent",
+            transition: "background 0.15s",
+            userSelect: "none",
+          }}>
+          {/* Handle */}
+          <div style={{ color: COLORS.gray400, fontSize: 18, flexShrink: 0, cursor: "grab" }}>⠿</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{p.cognome} {p.nome}</div>
+            <div style={{ fontSize: 12, color: COLORS.gray600 }}>{p.motivo}</div>
+            <div style={{ fontSize: 11, color: COLORS.gray400 }}>
+              {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
+            </div>
+          </div>
+          <button
+            style={{ background: COLORS.giallo, color: COLORS.bluDark, border: "none", borderRadius: 6, padding: "8px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onToggle(p); }}>
+            ✅ Portate
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── AREA RISERVATA ────────────────────────────────────────────────────────
 
 function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHook, pasteHook }) {
@@ -830,8 +930,6 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
       {tab === "paste" && (() => {
         const lista = buildPasteList(rosaHook.data, partiteHook.data, pasteHook.data);
 
-        // Applica ordine personalizzato: le paste con ordine salvato vengono riordinate
-        // Le paste senza ordine (ordine = 0 o null) mantengono l'ordine cronologico
         const daPortare = lista.filter(p => !p.portate).map((p, i) => {
           const rec = pasteHook.data.find(x => x.chiave === p.chiave);
           return { ...p, ordine: rec?.ordine ?? (i + 1) * 10 };
@@ -841,27 +939,9 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
 
         const toggle = async (item, nuovoValore) => {
           await pasteHook.upsertChiave({
-            chiave: item.chiave,
-            cognome: item.cognome,
-            nome: item.nome,
-            motivo: item.motivo,
-            data: item.data,
-            portate: nuovoValore,
-            ordine: item.ordine || 0,
+            chiave: item.chiave, cognome: item.cognome, nome: item.nome,
+            motivo: item.motivo, data: item.data, portate: nuovoValore, ordine: item.ordine || 0,
           });
-        };
-
-        const sposta = async (index, direzione) => {
-          const newList = [...daPortare];
-          const targetIndex = index + direzione;
-          if (targetIndex < 0 || targetIndex >= newList.length) return;
-
-          // Scambia gli ordini tra i due elementi
-          const ordineA = newList[index].ordine;
-          const ordineB = newList[targetIndex].ordine;
-
-          await pasteHook.upsertChiave({ ...newList[index], ordine: ordineB });
-          await pasteHook.upsertChiave({ ...newList[targetIndex], ordine: ordineA });
         };
 
         const isLoading = rosaHook.loading || partiteHook.loading || pasteHook.loading;
@@ -875,35 +955,19 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
                   Nessuna pasta — inserisci partite con marcatori o giocatori con data di nascita
                 </div>
               )}
-
-              {daPortare.map((p, i) => (
-                <div key={p.chiave} style={{ padding: "10px 16px", borderBottom: `1px solid ${COLORS.gray100}`, display: "flex", alignItems: "center", gap: 8, background: i === 0 ? COLORS.gialloMuted : COLORS.white }}>
-                  {/* Pulsanti riordina */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2, flexShrink: 0 }}>
-                    <button
-                      onClick={() => sposta(i, -1)}
-                      disabled={i === 0}
-                      style={{ background: i === 0 ? COLORS.gray100 : COLORS.blu, color: COLORS.white, border: "none", borderRadius: 4, width: 26, height: 22, cursor: i === 0 ? "default" : "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>▲</button>
-                    <button
-                      onClick={() => sposta(i, 1)}
-                      disabled={i === daPortare.length - 1}
-                      style={{ background: i === daPortare.length - 1 ? COLORS.gray100 : COLORS.blu, color: COLORS.white, border: "none", borderRadius: 4, width: 26, height: 22, cursor: i === daPortare.length - 1 ? "default" : "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>▼</button>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>{p.cognome} {p.nome}</div>
-                    <div style={{ fontSize: 12, color: COLORS.gray600 }}>{p.motivo}</div>
-                    <div style={{ fontSize: 11, color: COLORS.gray400 }}>
-                      {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
-                    </div>
-                  </div>
-                  <button
-                    style={{ background: COLORS.giallo, color: COLORS.bluDark, border: "none", borderRadius: 6, padding: "8px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}
-                    onClick={() => toggle(p, true)}>
-                    ✅ Portate
-                  </button>
-                </div>
-              ))}
-
+              <PastaDragList
+                items={daPortare}
+                onReorder={async (newOrder) => {
+                  for (let i = 0; i < newOrder.length; i++) {
+                    await pasteHook.upsertChiave({
+                      chiave: newOrder[i].chiave, cognome: newOrder[i].cognome,
+                      nome: newOrder[i].nome, motivo: newOrder[i].motivo,
+                      data: newOrder[i].data, portate: false, ordine: (i + 1) * 10,
+                    });
+                  }
+                }}
+                onToggle={(p) => toggle(p, true)}
+              />
               {giàPortate.length > 0 && <>
                 <div style={{ background: COLORS.gray50, padding: "6px 16px", fontSize: 11, fontWeight: 700, color: COLORS.gray600, letterSpacing: 1 }}>GIÀ PORTATE</div>
                 {giàPortate.map(p => (
@@ -912,11 +976,8 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
                       <div style={{ fontSize: 14, fontWeight: 700, textDecoration: "line-through", color: COLORS.gray600 }}>{p.cognome} {p.nome}</div>
                       <div style={{ fontSize: 12, color: COLORS.gray400 }}>{p.motivo}</div>
                     </div>
-                    <button
-                      style={{ background: "none", border: `1px solid ${COLORS.gray200}`, borderRadius: 6, padding: "8px 12px", fontSize: 12, cursor: "pointer", color: COLORS.gray600, flexShrink: 0 }}
-                      onClick={() => toggle(p, false)}>
-                      ↩️ Da portare
-                    </button>
+                    <button style={{ background: "none", border: `1px solid ${COLORS.gray200}`, borderRadius: 6, padding: "8px 12px", fontSize: 12, cursor: "pointer", color: COLORS.gray600 }}
+                      onClick={() => toggle(p, false)}>↩️ Da portare</button>
                   </div>
                 ))}
               </>}
