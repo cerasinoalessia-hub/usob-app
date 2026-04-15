@@ -829,7 +829,14 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
       {/* PASTE */}
       {tab === "paste" && (() => {
         const lista = buildPasteList(rosaHook.data, partiteHook.data, pasteHook.data);
-        const daPortare = lista.filter(p => !p.portate);
+
+        // Applica ordine personalizzato: le paste con ordine salvato vengono riordinate
+        // Le paste senza ordine (ordine = 0 o null) mantengono l'ordine cronologico
+        const daPortare = lista.filter(p => !p.portate).map((p, i) => {
+          const rec = pasteHook.data.find(x => x.chiave === p.chiave);
+          return { ...p, ordine: rec?.ordine ?? (i + 1) * 10 };
+        }).sort((a, b) => a.ordine - b.ordine);
+
         const giàPortate = lista.filter(p => p.portate);
 
         const toggle = async (item, nuovoValore) => {
@@ -840,7 +847,21 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
             motivo: item.motivo,
             data: item.data,
             portate: nuovoValore,
+            ordine: item.ordine || 0,
           });
+        };
+
+        const sposta = async (index, direzione) => {
+          const newList = [...daPortare];
+          const targetIndex = index + direzione;
+          if (targetIndex < 0 || targetIndex >= newList.length) return;
+
+          // Scambia gli ordini tra i due elementi
+          const ordineA = newList[index].ordine;
+          const ordineB = newList[targetIndex].ordine;
+
+          await pasteHook.upsertChiave({ ...newList[index], ordine: ordineB });
+          await pasteHook.upsertChiave({ ...newList[targetIndex], ordine: ordineA });
         };
 
         const isLoading = rosaHook.loading || partiteHook.loading || pasteHook.loading;
@@ -856,8 +877,19 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
               )}
 
               {daPortare.map((p, i) => (
-                <div key={p.chiave} style={{ padding: "12px 16px", borderBottom: `1px solid ${COLORS.gray100}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: i === 0 ? COLORS.gialloMuted : COLORS.white }}>
-                  <div>
+                <div key={p.chiave} style={{ padding: "10px 16px", borderBottom: `1px solid ${COLORS.gray100}`, display: "flex", alignItems: "center", gap: 8, background: i === 0 ? COLORS.gialloMuted : COLORS.white }}>
+                  {/* Pulsanti riordina */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, flexShrink: 0 }}>
+                    <button
+                      onClick={() => sposta(i, -1)}
+                      disabled={i === 0}
+                      style={{ background: i === 0 ? COLORS.gray100 : COLORS.blu, color: COLORS.white, border: "none", borderRadius: 4, width: 26, height: 22, cursor: i === 0 ? "default" : "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>▲</button>
+                    <button
+                      onClick={() => sposta(i, 1)}
+                      disabled={i === daPortare.length - 1}
+                      style={{ background: i === daPortare.length - 1 ? COLORS.gray100 : COLORS.blu, color: COLORS.white, border: "none", borderRadius: 4, width: 26, height: 22, cursor: i === daPortare.length - 1 ? "default" : "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>▼</button>
+                  </div>
+                  <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, fontWeight: 700 }}>{p.cognome} {p.nome}</div>
                     <div style={{ fontSize: 12, color: COLORS.gray600 }}>{p.motivo}</div>
                     <div style={{ fontSize: 11, color: COLORS.gray400 }}>
@@ -865,7 +897,7 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
                     </div>
                   </div>
                   <button
-                    style={{ background: COLORS.giallo, color: COLORS.bluDark, border: "none", borderRadius: 6, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}
+                    style={{ background: COLORS.giallo, color: COLORS.bluDark, border: "none", borderRadius: 6, padding: "8px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}
                     onClick={() => toggle(p, true)}>
                     ✅ Portate
                   </button>
@@ -879,12 +911,9 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 700, textDecoration: "line-through", color: COLORS.gray600 }}>{p.cognome} {p.nome}</div>
                       <div style={{ fontSize: 12, color: COLORS.gray400 }}>{p.motivo}</div>
-                      <div style={{ fontSize: 11, color: COLORS.gray400 }}>
-                        {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
-                      </div>
                     </div>
                     <button
-                      style={{ background: "none", border: `1px solid ${COLORS.gray200}`, borderRadius: 6, padding: "8px 14px", fontSize: 12, cursor: "pointer", color: COLORS.gray600, flexShrink: 0 }}
+                      style={{ background: "none", border: `1px solid ${COLORS.gray200}`, borderRadius: 6, padding: "8px 12px", fontSize: 12, cursor: "pointer", color: COLORS.gray600, flexShrink: 0 }}
                       onClick={() => toggle(p, false)}>
                       ↩️ Da portare
                     </button>
