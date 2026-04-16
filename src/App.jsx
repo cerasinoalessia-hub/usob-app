@@ -323,9 +323,11 @@ function CalendarioSection({ partite, classifica, loading }) {
   if (selected) {
     const match = partite.find(p => p.id === selected.id) || selected;
     const sorted = [...classifica].sort((a, b) => b.pt - a.pt);
-    const myPos = sorted.findIndex(c => c.squadra === "USOB Bareggio") + 1;
-    const avversaria = match.casa === "USOB Bareggio" ? match.ospite : match.casa;
-    const oppPos = sorted.findIndex(c => c.squadra === avversaria) + 1;
+    const usob = classifica.find(c => c.squadra?.toLowerCase().includes("usob") || c.squadra?.toLowerCase().includes("bareggio"));
+    const myPos = usob ? sorted.findIndex(c => c.id === usob.id) + 1 : null;
+    const avversaria = match.casa === usob?.squadra ? match.ospite : match.casa;
+    const oppEntry = sorted.find(c => c.squadra?.toLowerCase() === avversaria?.toLowerCase());
+    const oppPos = oppEntry ? sorted.findIndex(c => c.id === oppEntry.id) + 1 : null;
 
     return (
       <div>
@@ -346,13 +348,13 @@ function CalendarioSection({ partite, classifica, loading }) {
           <div style={{ padding: 16 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
               <div style={{ background: COLORS.gray50, borderRadius: 8, padding: 12, textAlign: "center" }}>
-                <div style={{ fontSize: 11, color: COLORS.gray600, marginBottom: 4 }}>USOB Bareggio</div>
-                <div style={{ fontSize: 26, fontWeight: 900, color: COLORS.blu }}>{myPos || "–"}°</div>
+                <div style={{ fontSize: 11, color: COLORS.gray600, marginBottom: 4 }}>{usob?.squadra || "USOB"}</div>
+                <div style={{ fontSize: 26, fontWeight: 900, color: COLORS.blu }}>{myPos ? `${myPos}°` : "–"}</div>
                 <div style={{ fontSize: 11, color: COLORS.gray400 }}>in classifica</div>
               </div>
               <div style={{ background: COLORS.gray50, borderRadius: 8, padding: 12, textAlign: "center" }}>
                 <div style={{ fontSize: 11, color: COLORS.gray600, marginBottom: 4 }}>{avversaria}</div>
-                <div style={{ fontSize: 26, fontWeight: 900, color: COLORS.gray600 }}>{oppPos || "–"}°</div>
+                <div style={{ fontSize: 26, fontWeight: 900, color: COLORS.gray600 }}>{oppPos ? `${oppPos}°` : "–"}</div>
                 <div style={{ fontSize: 11, color: COLORS.gray400 }}>in classifica</div>
               </div>
             </div>
@@ -607,7 +609,7 @@ function FunSection({ rosa, partite, paste, loading }) {
 
   return (
     <div>
-      <div style={styles.sectionTitle}>🎂 FUN — LE PASTE</div>
+      <div style={styles.sectionTitle}>🎂 CHI PORTA LE PASTE?</div>
       {loading ? <Spinner /> : <>
         <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.gray600, letterSpacing: 1, marginBottom: 6, paddingLeft: 4 }}>DA PORTARE</div>
         <div style={{ ...styles.card, marginBottom: 14 }}>
