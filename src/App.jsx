@@ -814,8 +814,34 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
               </select>
               <label style={lbl}>Luogo</label>
               <input style={inp} type="text" value={editM.luogo || ""} onChange={e => setEditM({ ...editM, luogo: e.target.value })} />
-              <label style={lbl}>Risultato (es. 2-1)</label>
-              <input style={inp} type="text" value={editM.risultato || ""} onChange={e => setEditM({ ...editM, risultato: e.target.value })} />
+              <label style={lbl}>Risultato</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <div style={{ flex: 1, textAlign: "center" }}>
+                  <div style={{ fontSize: 11, color: COLORS.gray600, marginBottom: 2 }}>{editM.casa || "Casa"}</div>
+                  <input
+                    type="number" min="0" max="99"
+                    style={{ ...inp, marginBottom: 0, textAlign: "center", fontSize: 20, fontWeight: 800, padding: "10px 6px" }}
+                    value={editM.risultato ? editM.risultato.split("-")[0] || "" : ""}
+                    onChange={e => {
+                      const ospGol = editM.risultato ? editM.risultato.split("-")[1] || "0" : "0";
+                      setEditM({ ...editM, risultato: `${e.target.value}-${ospGol}` });
+                    }}
+                  />
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 900, color: COLORS.gray400, paddingTop: 18 }}>—</div>
+                <div style={{ flex: 1, textAlign: "center" }}>
+                  <div style={{ fontSize: 11, color: COLORS.gray600, marginBottom: 2 }}>{editM.ospite || "Ospite"}</div>
+                  <input
+                    type="number" min="0" max="99"
+                    style={{ ...inp, marginBottom: 0, textAlign: "center", fontSize: 20, fontWeight: 800, padding: "10px 6px" }}
+                    value={editM.risultato ? editM.risultato.split("-")[1] || "" : ""}
+                    onChange={e => {
+                      const casaGol = editM.risultato ? editM.risultato.split("-")[0] || "0" : "0";
+                      setEditM({ ...editM, risultato: `${casaGol}-${e.target.value}` });
+                    }}
+                  />
+                </div>
+              </div>
 
               {/* MARCATORI */}
               <label style={{ ...lbl, marginTop: 4 }}>⚽ Marcatori</label>
