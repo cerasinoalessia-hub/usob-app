@@ -440,23 +440,6 @@ function AnalyticsSection({ rosa, partite, classifica, loading }) {
       <div style={styles.sectionTitle}>ANALYTICS</div>
       {loading ? <Spinner /> : <>
         <div style={styles.card}>
-          <div style={styles.cardHeader}>⚽ MARCATORI</div>
-          {marcatori.length === 0
-            ? <div style={{ padding: 16, fontSize: 13, color: COLORS.gray400, textAlign: "center" }}>Nessun gol registrato</div>
-            : marcatori.map((p, i) => (
-            <div key={p.id} style={{ padding: "10px 16px", borderBottom: `1px solid ${COLORS.gray100}` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                <span style={{ fontWeight: 700, fontSize: 14 }}>{p.cognome} {p.nome}</span>
-                <span style={{ ...styles.badge(), fontWeight: 800, fontSize: 13 }}>{p.golReali} ⚽</span>
-              </div>
-              <div style={{ height: 6, background: COLORS.gray100, borderRadius: 3, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${(p.golReali / maxGol) * 100}%`, background: i === 0 ? COLORS.giallo : COLORS.blu, borderRadius: 3 }} />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div style={styles.card}>
           <div style={styles.cardHeader}>🏆 CLASSIFICA</div>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -487,7 +470,24 @@ function AnalyticsSection({ rosa, partite, classifica, loading }) {
         </div>
 
         <div style={styles.card}>
-          <div style={styles.cardHeader}>📋 PRESENZE PER RUOLO</div>
+          <div style={styles.cardHeader}>⚽ MARCATORI</div>
+          {marcatori.length === 0
+            ? <div style={{ padding: 16, fontSize: 13, color: COLORS.gray400, textAlign: "center" }}>Nessun gol registrato</div>
+            : marcatori.map((p, i) => (
+            <div key={p.id} style={{ padding: "10px 16px", borderBottom: `1px solid ${COLORS.gray100}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <span style={{ fontWeight: 700, fontSize: 14 }}>{p.cognome} {p.nome}</span>
+                <span style={{ ...styles.badge(), fontWeight: 800, fontSize: 13 }}>{p.golReali} ⚽</span>
+              </div>
+              <div style={{ height: 6, background: COLORS.gray100, borderRadius: 3, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${(p.golReali / maxGol) * 100}%`, background: i === 0 ? COLORS.giallo : COLORS.blu, borderRadius: 3 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={styles.card}>
+          <div style={styles.cardHeader}>📋 PRESENZE</div>
           {ruoli.map(r => {
             const g = [...rosa].filter(p => p.ruolo === r).sort((a, b) => a.cognome.localeCompare(b.cognome));
             if (!g.length) return null;
