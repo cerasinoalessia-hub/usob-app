@@ -432,7 +432,7 @@ function AnalyticsSection({ rosa, partite, classifica, loading }) {
     .sort((a, b) => b.golReali - a.golReali);
   const maxGol = marcatori[0]?.golReali || 1;
   const sorted = [...classifica].sort((a, b) => b.pt - a.pt);
-  const ruoli = [...new Set(rosa.map(g => g.ruolo).filter(Boolean))].sort();
+  const ruoli = ["Portiere", "Difensore", "Centrocampista", "Attaccante"];
 
   // Presenze calcolate dai convocati delle partite
   const presenzePerGiocatore = {};
