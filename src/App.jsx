@@ -17,7 +17,17 @@ const COLORS = {
   gray800: "#343A40",
 };
 
-// ─── Supabase data hook ────────────────────────────────────────────────────
+// Parsa una data ISO senza conversione fuso orario (evita il problema UTC → ora locale)
+function parseDate(str) {
+  if (!str) return new Date();
+  const [y, m, d] = str.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function formatDate(str, opts) {
+  if (!str) return "";
+  return parseDate(str).toLocaleDateString("it-IT", opts);
+}
 
 function useTable(table, orderBy = "id") {
   const [data, setData] = useState([]);
@@ -250,7 +260,7 @@ function HomeSection({ rosa, partite, classifica, loading }) {
           : prossimi.map(p => (
             <div key={p.id} style={{ padding: "10px 16px", borderBottom: `1px solid ${COLORS.gray100}` }}>
               <div style={{ fontSize: 11, color: COLORS.gray600, marginBottom: 2 }}>
-                {new Date(p.data).toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long" })} — {p.luogo}
+                {formatDate(p.data, { weekday: "short", day: "numeric", month: "long" })} — {p.luogo}
               </div>
               <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.bluDark }}>
                 {p.casa} <span style={{ color: COLORS.gray400 }}>vs</span> {p.ospite}
@@ -337,7 +347,7 @@ function CalendarioSection({ partite, classifica, loading }) {
         <div style={{ ...styles.card, marginBottom: 0 }}>
           <div style={{ background: COLORS.blu, padding: "16px", textAlign: "center" }}>
             <div style={{ color: COLORS.giallo, fontSize: 11, letterSpacing: 2, marginBottom: 4 }}>
-              {new Date(match.data).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+              {formatDate(match.data, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
             </div>
             <div style={{ color: COLORS.white, fontSize: 18, fontWeight: 800 }}>{match.casa}</div>
             <div style={{ color: COLORS.giallo, fontWeight: 900, fontSize: 28, margin: "8px 0" }}>
@@ -388,7 +398,7 @@ function CalendarioSection({ partite, classifica, loading }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
           <div style={{ fontSize: 11, color: COLORS.gray600, marginBottom: 2 }}>
-            {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })} — {p.luogo}
+            {formatDate(p.data, { day: "numeric", month: "short", year: "numeric" })} — {p.luogo}
           </div>
           <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.bluDark, lineHeight: 1.3 }}>
             {p.casa} <span style={{ color: COLORS.gray400, fontWeight: 400 }}>vs</span> {p.ospite}
@@ -560,7 +570,7 @@ function buildPasteList(rosa, partite, pasteDb) {
   rosa
     .filter(g => g.nascita)
     .forEach(g => {
-      const nascita = new Date(g.nascita);
+      const nascita = parseDate(g.nascita);
       let dataCompl = new Date(annoCorrente, nascita.getMonth(), nascita.getDate());
       if (dataCompl < oggi) {
         dataCompl = new Date(annoCorrente + 1, nascita.getMonth(), nascita.getDate());
@@ -586,7 +596,7 @@ function buildPasteList(rosa, partite, pasteDb) {
     if (aOrd && bOrd) return a.ordine - b.ordine;
     if (aOrd) return -1;
     if (bOrd) return 1;
-    return new Date(a.data) - new Date(b.data);
+    return parseDate(a.data) - parseDate(b.data);
   });
 
   return lista;
@@ -606,7 +616,7 @@ function FunSection({ rosa, partite, paste, loading }) {
         <div style={{ fontWeight: 800, fontSize: 16, color: COLORS.bluDark }}>{p.cognome} {p.nome}</div>
         <div style={{ fontSize: 12, color: COLORS.gray600 }}>{p.motivo}</div>
         <div style={{ fontSize: 12, color: COLORS.gray400 }}>
-          {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
+          {formatDate(p.data, { day: "numeric", month: "long", year: "numeric" })}
         </div>
       </div>
       {isFirst && <span style={{ ...styles.badge(), fontSize: 11, padding: "4px 10px" }}>PROSSIMO!</span>}
@@ -633,7 +643,7 @@ function FunSection({ rosa, partite, paste, loading }) {
                 <div style={{ fontSize: 22 }}>✅</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: COLORS.gray600, textDecoration: "line-through" }}>{p.cognome} {p.nome}</div>
-                  <div style={{ fontSize: 12, color: COLORS.gray400 }}>{p.motivo} — {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long" })}</div>
+                  <div style={{ fontSize: 12, color: COLORS.gray400 }}>{p.motivo} — {formatDate(p.data, { day: "numeric", month: "long" })}</div>
                 </div>
               </div>
             ))}
@@ -686,7 +696,7 @@ function PastaDragList({ items, onReorder, onToggle }) {
             <div style={{ fontSize: 14, fontWeight: 700 }}>{p.cognome} {p.nome}</div>
             <div style={{ fontSize: 12, color: COLORS.gray600 }}>{p.motivo}</div>
             <div style={{ fontSize: 11, color: COLORS.gray400 }}>
-              {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
+              {formatDate(p.data, { day: "numeric", month: "long", year: "numeric" })}
             </div>
           </div>
           <button onClick={() => onToggle(p)} style={{
@@ -792,7 +802,7 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
                 <div style={styles.numero}>{p.numero}</div>
                 <div style={{ flex: 1 }}>
                   <span style={{ fontWeight: 700, fontSize: 14 }}>{p.cognome} {p.nome}</span>
-                  <span style={{ fontSize: 12, color: COLORS.gray600, display: "block" }}>{p.ruolo}{p.nascita ? ` — ${new Date(p.nascita).toLocaleDateString("it-IT")}` : ""}</span>
+                  <span style={{ fontSize: 12, color: COLORS.gray600, display: "block" }}>{p.ruolo}{p.nascita ? ` — ${formatDate(p.nascita, {})}` : ""}</span>
                 </div>
                 <button style={{ background: "none", border: `1px solid ${COLORS.gray200}`, borderRadius: 6, padding: "4px 8px", fontSize: 11, cursor: "pointer" }} onClick={() => setEditP({ ...p })}>✏️</button>
               </div>
@@ -932,7 +942,7 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
             {partiteHook.loading ? <Spinner /> : partiteHook.data.map(p => (
               <div key={p.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${COLORS.gray100}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <div style={{ fontSize: 11, color: COLORS.gray600 }}>{new Date(p.data).toLocaleDateString("it-IT")}</div>
+                  <div style={{ fontSize: 11, color: COLORS.gray600 }}>{formatDate(p.data, {})}</div>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{p.casa} vs {p.ospite}</div>
                   {p.marcatori?.length > 0 && <div style={{ fontSize: 11, color: COLORS.gray600 }}>⚽ {p.marcatori.join(", ")}</div>}
                   {p.convocati?.length > 0 && <div style={{ fontSize: 11, color: COLORS.gray600 }}>🟢 {p.convocati.length} convocati</div>}
