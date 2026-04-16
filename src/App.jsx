@@ -365,6 +365,12 @@ function CalendarioSection({ partite, classifica, loading }) {
                 {match.marcatori.map((m, i) => <div key={i} style={{ fontSize: 13, color: COLORS.gray800, padding: "3px 0" }}>• {m}</div>)}
               </div>
             )}
+            {match.convocati?.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.bluDark, marginBottom: 6 }}>🟢 Convocati ({match.convocati.length}):</div>
+                {match.convocati.map((c, i) => <div key={i} style={{ fontSize: 13, color: COLORS.gray800, padding: "3px 0" }}>• {c}</div>)}
+              </div>
+            )}
             {match.note ? (
               <div style={{ background: COLORS.gialloMuted, borderRadius: 8, padding: "10px 12px", borderLeft: `3px solid ${COLORS.giallo}` }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.bluDark, marginBottom: 4 }}>📝 NOTE STAFF</div>
