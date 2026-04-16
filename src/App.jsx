@@ -606,11 +606,6 @@ function FunSection({ rosa, partite, paste, loading }) {
       {loading ? <Spinner /> : <>
         <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.gray600, letterSpacing: 1, marginBottom: 6, paddingLeft: 4 }}>DA PORTARE</div>
         <div style={{ ...styles.card, marginBottom: 14 }}>
-          <div style={{ padding: "12px 16px", background: COLORS.gialloMuted, borderBottom: `1px solid ${COLORS.giallo}` }}>
-            <div style={{ fontSize: 13, color: COLORS.bluDark, fontWeight: 600 }}>
-              Un gol = una pasta. Un compleanno = una pasta. In ordine cronologico.
-            </div>
-          </div>
           {daPortare.length === 0
             ? <div style={{ padding: 16, fontSize: 13, color: COLORS.gray400, textAlign: "center" }}>Nessuna pasta in programma 🎉</div>
             : daPortare.map((p, i) => <PastaRow key={p.chiave} p={p} isFirst={i === 0} />)
