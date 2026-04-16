@@ -639,97 +639,53 @@ function FunSection({ rosa, partite, paste, loading }) {
 // ─── Drag & Drop lista paste ───────────────────────────────────────────────
 
 function PastaDragList({ items, onReorder, onToggle }) {
-  const [dragging, setDragging] = useState(null);
-  const [over, setOver] = useState(null);
-  const [localItems, setLocalItems] = useState(items);
-
-  useEffect(() => { setLocalItems(items); }, [items]);
-
-  // Touch drag state
-  const touchData = { startY: 0, startIndex: null };
-
-  const handleDragStart = (i) => setDragging(i);
-  const handleDragOver = (e, i) => { e.preventDefault(); setOver(i); };
-  const handleDrop = (i) => {
-    if (dragging === null || dragging === i) { setDragging(null); setOver(null); return; }
-    const newList = [...localItems];
-    const [moved] = newList.splice(dragging, 1);
-    newList.splice(i, 0, moved);
-    setLocalItems(newList);
-    setDragging(null);
-    setOver(null);
+  const sposta = (index, direzione) => {
+    const targetIndex = index + direzione;
+    if (targetIndex < 0 || targetIndex >= items.length) return;
+    const newList = [...items];
+    const temp = newList[index];
+    newList[index] = newList[targetIndex];
+    newList[targetIndex] = temp;
     onReorder(newList);
-  };
-
-  // Touch support
-  const handleTouchStart = (e, i) => {
-    touchData.startY = e.touches[0].clientY;
-    touchData.startIndex = i;
-    setDragging(i);
-  };
-  const handleTouchMove = (e) => {
-    e.preventDefault();
-    const y = e.touches[0].clientY;
-    const elements = document.querySelectorAll("[data-pasta-row]");
-    let targetIndex = touchData.startIndex;
-    elements.forEach((el, idx) => {
-      const rect = el.getBoundingClientRect();
-      if (y >= rect.top && y <= rect.bottom) targetIndex = idx;
-    });
-    setOver(targetIndex);
-  };
-  const handleTouchEnd = () => {
-    if (over !== null && over !== dragging) {
-      const newList = [...localItems];
-      const [moved] = newList.splice(dragging, 1);
-      newList.splice(over, 0, moved);
-      setLocalItems(newList);
-      onReorder(newList);
-    }
-    setDragging(null);
-    setOver(null);
   };
 
   return (
     <div>
-      {localItems.map((p, i) => (
-        <div
-          key={p.chiave}
-          data-pasta-row={i}
-          draggable
-          onDragStart={() => handleDragStart(i)}
-          onDragOver={(e) => handleDragOver(e, i)}
-          onDrop={() => handleDrop(i)}
-          onDragEnd={() => { setDragging(null); setOver(null); }}
-          onTouchStart={(e) => handleTouchStart(e, i)}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          style={{
-            padding: "10px 16px",
-            borderBottom: `1px solid ${COLORS.gray100}`,
-            display: "flex", alignItems: "center", gap: 10,
-            background: over === i ? COLORS.gialloMuted : i === 0 ? COLORS.gialloMuted : COLORS.white,
-            opacity: dragging === i ? 0.4 : 1,
-            cursor: "grab",
-            borderLeft: over === i && dragging !== i ? `3px solid ${COLORS.blu}` : "3px solid transparent",
-            transition: "background 0.15s",
-            userSelect: "none",
-          }}>
-          {/* Handle */}
-          <div style={{ color: COLORS.gray400, fontSize: 18, flexShrink: 0, cursor: "grab" }}>⠿</div>
-          <div style={{ flex: 1 }}>
+      {items.map((p, i) => (
+        <div key={p.chiave} style={{
+          padding: "10px 12px",
+          borderBottom: `1px solid ${COLORS.gray100}`,
+          display: "flex", alignItems: "center", gap: 8,
+          background: i === 0 ? COLORS.gialloMuted : COLORS.white,
+        }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 3, flexShrink: 0 }}>
+            <button onClick={() => sposta(i, -1)} disabled={i === 0} style={{
+              width: 32, height: 28, border: "none", borderRadius: 5,
+              cursor: i === 0 ? "default" : "pointer",
+              background: i === 0 ? COLORS.gray100 : COLORS.blu,
+              color: i === 0 ? COLORS.gray400 : COLORS.white,
+              fontSize: 14, fontWeight: 700,
+            }}>▲</button>
+            <button onClick={() => sposta(i, 1)} disabled={i === items.length - 1} style={{
+              width: 32, height: 28, border: "none", borderRadius: 5,
+              cursor: i === items.length - 1 ? "default" : "pointer",
+              background: i === items.length - 1 ? COLORS.gray100 : COLORS.blu,
+              color: i === items.length - 1 ? COLORS.gray400 : COLORS.white,
+              fontSize: 14, fontWeight: 700,
+            }}>▼</button>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>{p.cognome} {p.nome}</div>
             <div style={{ fontSize: 12, color: COLORS.gray600 }}>{p.motivo}</div>
             <div style={{ fontSize: 11, color: COLORS.gray400 }}>
               {new Date(p.data).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}
             </div>
           </div>
-          <button
-            style={{ background: COLORS.giallo, color: COLORS.bluDark, border: "none", borderRadius: 6, padding: "8px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); onToggle(p); }}>
-            ✅ Portate
-          </button>
+          <button onClick={() => onToggle(p)} style={{
+            background: COLORS.giallo, color: COLORS.bluDark, border: "none",
+            borderRadius: 6, padding: "8px 10px", fontSize: 12, fontWeight: 700,
+            cursor: "pointer", flexShrink: 0,
+          }}>✅ Portate</button>
         </div>
       ))}
     </div>
