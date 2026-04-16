@@ -422,7 +422,6 @@ function CalendarioSection({ partite, classifica, loading }) {
 // ─── ANALYTICS ─────────────────────────────────────────────────────────────
 
 function AnalyticsSection({ rosa, partite, classifica, loading }) {
-  // Conta i gol dai marcatori delle partite reali
   const golPerGiocatore = {};
   partite.filter(p => p.fatta && Array.isArray(p.marcatori)).forEach(p => {
     p.marcatori.forEach(m => { golPerGiocatore[m] = (golPerGiocatore[m] || 0) + 1; });
@@ -434,6 +433,12 @@ function AnalyticsSection({ rosa, partite, classifica, loading }) {
   const maxGol = marcatori[0]?.golReali || 1;
   const sorted = [...classifica].sort((a, b) => b.pt - a.pt);
   const ruoli = ["Portiere", "Difensore", "Centrocampista", "Attaccante"];
+
+  // Presenze calcolate dai convocati delle partite
+  const presenzePerGiocatore = {};
+  partite.filter(p => p.fatta && Array.isArray(p.convocati)).forEach(p => {
+    p.convocati.forEach(c => { presenzePerGiocatore[c] = (presenzePerGiocatore[c] || 0) + 1; });
+  });
 
   return (
     <div>
@@ -500,7 +505,7 @@ function AnalyticsSection({ rosa, partite, classifica, loading }) {
                       <div style={styles.numero}>{p.numero}</div>
                       <span style={{ fontSize: 14 }}>{p.cognome} {p.nome}</span>
                     </div>
-                    <span style={{ ...styles.badge(COLORS.blu), color: COLORS.white }}>{p.presenze} 🟢</span>
+                    <span style={{ ...styles.badge(COLORS.blu), color: COLORS.white }}>{presenzePerGiocatore[p.cognome] || 0} 🟢</span>
                   </div>
                 ))}
               </div>
@@ -818,25 +823,42 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
                   </div>
                 ))}
                 <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                  <select
-                    id="marcatore-select"
-                    style={{ ...inp, marginBottom: 0, flex: 1 }}
-                    defaultValue=""
-                  >
+                  <select id="marcatore-select" style={{ ...inp, marginBottom: 0, flex: 1 }} defaultValue="">
                     <option value="" disabled>Seleziona giocatore…</option>
-                    {rosaHook.data.map(p => (
-                      <option key={p.id} value={p.cognome}>{p.cognome} {p.nome}</option>
-                    ))}
+                    {rosaHook.data.map(p => <option key={p.id} value={p.cognome}>{p.cognome} {p.nome}</option>)}
                   </select>
-                  <button
-                    onClick={() => {
-                      const sel = document.getElementById("marcatore-select");
-                      if (sel.value) {
-                        setEditM({ ...editM, marcatori: [...(editM.marcatori || []), sel.value] });
-                        sel.value = "";
-                      }
-                    }}
-                    style={{ background: COLORS.blu, color: COLORS.white, border: "none", borderRadius: 6, padding: "0 14px", fontSize: 18, cursor: "pointer", fontWeight: 700 }}>+</button>
+                  <button onClick={() => {
+                    const sel = document.getElementById("marcatore-select");
+                    if (sel.value) { setEditM({ ...editM, marcatori: [...(editM.marcatori || []), sel.value] }); sel.value = ""; }
+                  }} style={{ background: COLORS.blu, color: COLORS.white, border: "none", borderRadius: 6, padding: "0 14px", fontSize: 18, cursor: "pointer", fontWeight: 700 }}>+</button>
+                </div>
+              </div>
+
+              {/* CONVOCATI */}
+              <label style={{ ...lbl, marginTop: 4 }}>🟢 Convocati (presenze)</label>
+              <div style={{ background: COLORS.gray50, borderRadius: 8, padding: 10, marginBottom: 6 }}>
+                {(editM.convocati || []).length === 0 && (
+                  <div style={{ fontSize: 12, color: COLORS.gray400, marginBottom: 6 }}>Nessun convocato aggiunto</div>
+                )}
+                {(editM.convocati || []).map((m, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: `1px solid ${COLORS.gray100}` }}>
+                    <span style={{ fontSize: 13 }}>🟢 {m}</span>
+                    <button onClick={() => setEditM({ ...editM, convocati: editM.convocati.filter((_, idx) => idx !== i) })}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#c0392b", fontSize: 16, padding: "0 4px" }}>×</button>
+                  </div>
+                ))}
+                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                  <select id="convocato-select" style={{ ...inp, marginBottom: 0, flex: 1 }} defaultValue="">
+                    <option value="" disabled>Seleziona giocatore…</option>
+                    {rosaHook.data.map(p => <option key={p.id} value={p.cognome}>{p.cognome} {p.nome}</option>)}
+                  </select>
+                  <button onClick={() => {
+                    const sel = document.getElementById("convocato-select");
+                    if (sel.value && !(editM.convocati || []).includes(sel.value)) {
+                      setEditM({ ...editM, convocati: [...(editM.convocati || []), sel.value] });
+                      sel.value = "";
+                    }
+                  }} style={{ background: COLORS.blu, color: COLORS.white, border: "none", borderRadius: 6, padding: "0 14px", fontSize: 18, cursor: "pointer", fontWeight: 700 }}>+</button>
                 </div>
               </div>
 
@@ -849,7 +871,7 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
                 <button style={saveBtn} disabled={saving} onClick={async () => {
                   setSaving(true);
                   const { id, ...f } = editM;
-                  const payload = { ...f, fatta: !!f.fatta, marcatori: f.marcatori || [] };
+                  const payload = { ...f, fatta: !!f.fatta, marcatori: f.marcatori || [], convocati: f.convocati || [] };
                   if (id) await partiteHook.update(id, payload);
                   else await partiteHook.upsert(payload);
                   setSaving(false);
@@ -863,7 +885,7 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
           <div style={styles.card}>
             <div style={styles.cardHeader}>PARTITE
               <button style={{ background: COLORS.giallo, color: COLORS.bluDark, border: "none", borderRadius: 6, padding: "4px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                onClick={() => setEditM({ data: "", casa: "USOB Bareggio", ospite: "", luogo: "", risultato: "", fatta: false, note: "", marcatori: [] })}>+ Aggiungi</button>
+                onClick={() => setEditM({ data: "", casa: "USOB Bareggio", ospite: "", luogo: "", risultato: "", fatta: false, note: "", marcatori: [], convocati: [] })}>+ Aggiungi</button>
             </div>
             {partiteHook.loading ? <Spinner /> : partiteHook.data.map(p => (
               <div key={p.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${COLORS.gray100}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -871,6 +893,7 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
                   <div style={{ fontSize: 11, color: COLORS.gray600 }}>{new Date(p.data).toLocaleDateString("it-IT")}</div>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{p.casa} vs {p.ospite}</div>
                   {p.marcatori?.length > 0 && <div style={{ fontSize: 11, color: COLORS.gray600 }}>⚽ {p.marcatori.join(", ")}</div>}
+                  {p.convocati?.length > 0 && <div style={{ fontSize: 11, color: COLORS.gray600 }}>🟢 {p.convocati.length} convocati</div>}
                   {p.note ? <div style={{ fontSize: 11, color: COLORS.gray400 }}>📝 {p.note.slice(0,40)}{p.note.length > 40 ? "…" : ""}</div> : null}
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
