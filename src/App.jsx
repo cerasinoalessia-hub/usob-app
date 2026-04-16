@@ -754,11 +754,19 @@ function AreaRiservataSection({ rosaHook, partiteHook, classificaHook, squadreHo
           {editP && (
             <div style={{ ...styles.card, padding: 16, marginBottom: 12 }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.bluDark, marginBottom: 12 }}>{editP.id ? "Modifica giocatore" : "Nuovo giocatore"}</div>
-              {[["numero","Numero"],["cognome","Cognome"],["nome","Nome"],["ruolo","Ruolo"],["nascita","Data di nascita"]].map(([f,l]) => (
+              {[["numero","Numero"],["cognome","Cognome"],["nome","Nome"],["nascita","Data di nascita"]].map(([f,l]) => (
                 <div key={f}><label style={lbl}>{l}</label>
                   <input style={inp} type={f === "nascita" ? "date" : "text"} value={editP[f] || ""} onChange={e => setEditP({ ...editP, [f]: e.target.value })} />
                 </div>
               ))}
+              <label style={lbl}>Ruolo</label>
+              <select style={inp} value={editP.ruolo || ""} onChange={e => setEditP({ ...editP, ruolo: e.target.value })}>
+                <option value="" disabled>Seleziona ruolo…</option>
+                <option value="Portiere">Portiere</option>
+                <option value="Difensore">Difensore</option>
+                <option value="Centrocampista">Centrocampista</option>
+                <option value="Attaccante">Attaccante</option>
+              </select>
               <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
                 <button style={saveBtn} disabled={saving} onClick={async () => { setSaving(true); const { id, ...f } = editP; id ? await rosaHook.update(id, { ...f, numero: Number(f.numero) }) : await rosaHook.upsert({ ...f, numero: Number(f.numero) }); setSaving(false); setEditP(null); }}>{saving ? "…" : "Salva"}</button>
                 <button style={cancelBtn} onClick={() => setEditP(null)}>Annulla</button>
